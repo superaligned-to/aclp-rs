@@ -10,11 +10,11 @@ fn examples() -> Vec<(String, Value)> {
 }
 
 #[test]
-fn all_forty_methods_accept_their_canonical_parameters() {
+fn all_forty_three_methods_accept_their_canonical_parameters() {
     let examples = examples();
 
-    assert_eq!(DEFINITIONS.len(), 40);
-    assert_eq!(examples.len(), 40);
+    assert_eq!(DEFINITIONS.len(), 43);
+    assert_eq!(examples.len(), 43);
 
     for (method, params) in examples {
         assert!(is_event_method(&method), "{method}");

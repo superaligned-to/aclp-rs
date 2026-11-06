@@ -156,13 +156,19 @@ async fn notification_rejection_reaches_diagnostics_and_flush() {
 }
 
 #[test]
-fn client_rejects_remote_endpoints_and_invalid_timers() {
+fn client_accepts_remote_endpoints_but_rejects_credentials_fragments_and_bad_timers() {
     for url in [
-        "https://example.com/events",
+        "https://aclp.example.com/events",
         "http://example.com/events",
+        "https://localhost/events",
+    ] {
+        assert!(Client::new(ClientOptions::new(url)).is_ok(), "{url}");
+    }
+
+    for url in [
+        "ftp://example.com/events",
         "http://user:password@localhost/events",
         "http://localhost/events#fragment",
-        "https://localhost/events",
         "localhost:8787",
     ] {
         assert_eq!(

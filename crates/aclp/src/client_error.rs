@@ -15,6 +15,18 @@ pub enum ClientError {
         /// The event method.
         method: &'static str,
     },
+    /// The method is outside the events the user consented to share.
+    #[error("ACLP method {method} is not consented")]
+    NotConsented {
+        /// The event method.
+        method: &'static str,
+    },
+    /// The authorization provider returned a value that cannot be an HTTP header.
+    #[error("ACLP authorization provider returned an invalid header value")]
+    Authorization,
+    /// The discovery response is not a valid `DiscoveryDocument`.
+    #[error("invalid ACLP discovery document")]
+    InvalidDiscovery,
     /// The encoded message exceeds the protocol's size or nesting bounds.
     #[error("ACLP message exceeds protocol bounds")]
     TooLarge,

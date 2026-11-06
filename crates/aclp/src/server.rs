@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
 use std::fmt;
 use std::future::Future;
@@ -8,10 +8,10 @@ use std::time::Duration;
 
 use http_body_util::Full;
 use hyper::body::{Bytes, Incoming};
-use hyper::header::{ALLOW, CONNECTION, CONTENT_TYPE, HeaderValue, WWW_AUTHENTICATE};
+use hyper::header::{ALLOW, CONNECTION, CONTENT_TYPE, HeaderName, HeaderValue, WWW_AUTHENTICATE};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
-use hyper::{Request, Response, StatusCode};
+use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::{TokioIo, TokioTimer};
 use serde_json::{Value, json};
 use tokio::net::{TcpListener, TcpStream};
@@ -21,10 +21,12 @@ use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 
 use crate::callback_error::CallbackError;
-use crate::callbacks::{Callback, Callbacks};
+use crate::callbacks::{CallContext, Callback, Callbacks};
 use crate::config_error::ConfigError;
+use crate::discover::DISCOVERY_PATH;
 use crate::json;
 use crate::result_schema::ResultSchema;
+use crate::server_options::{ErrorHook, ServerOptions, discovery_document};
 use crate::transport::{self, Credential, HttpFailure};
 use crate::validation;
 
@@ -39,58 +41,21 @@ const MAX_HEADER_BYTES: usize = 16_384;
 // Persistent accept failures such as descriptor exhaustion would otherwise spin the accept loop.
 const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
 
-type ErrorHook = Arc<dyn Fn(&CallbackError) + Send + Sync>;
-
 type Reply = Response<Full<Bytes>>;
 
-/// Server configuration: optional required credentials and a diagnostics hook.
-#[derive(Clone, Default)]
-pub struct ServerOptions {
-    authorization: Option<String>,
-    on_error: Option<ErrorHook>,
-}
-
-impl ServerOptions {
-    /// Creates options without credentials that log callback failures with `tracing`.
-    pub fn new() -> Self {
-        ServerOptions::default()
-    }
-
-    /// Requires this exact `Authorization` header value, such as `Bearer <token>`, before dispatch.
-    #[must_use]
-    pub fn authorization(mut self, val: impl Into<String>) -> Self {
-        self.authorization = Some(val.into());
-        self
-    }
-
-    /// Receives each callback failure after admission instead of the `tracing` log.
-    #[must_use]
-    pub fn on_error(mut self, hook: impl Fn(&CallbackError) + Send + Sync + 'static) -> Self {
-        self.on_error = Some(Arc::new(hook));
-        self
-    }
-}
-
-impl fmt::Debug for ServerOptions {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ServerOptions")
-            .field(
-                "authorization",
-                &self.authorization.as_ref().map(|_| "<redacted>"),
-            )
-            .finish_non_exhaustive()
-    }
-}
+const ACLP_CLIENT: HeaderName = HeaderName::from_static("aclp-client");
 
 struct Inner {
     callbacks: HashMap<&'static str, Callback>,
     credential: Option<Credential>,
+    hosts: HashSet<String>,
+    discovery: Option<Bytes>,
     on_error: Option<ErrorHook>,
     capacity: Arc<Semaphore>,
     tasks: TaskTracker,
 }
 
-/// An ACLP callback server for loopback HTTP/1.1 connections.
+/// An ACLP callback server for HTTP/1.1 connections, loopback-only unless public hosts are named.
 ///
 /// The server validates every message before a callback runs. At most 32 callbacks run at once;
 /// a slot stays reserved until its callback completes, even when the caller has gone away.
@@ -171,10 +136,11 @@ impl Inner {
             cb,
             method,
             params,
+            ctx,
             permit,
         } = call;
 
-        let running = tokio::spawn((cb.handle)(params));
+        let running = tokio::spawn((cb.handle)(params, ctx));
 
         self.tasks.spawn(async move {
             let res = running
@@ -204,7 +170,18 @@ impl Inner {
         peer: SocketAddr,
         local: SocketAddr,
     ) -> Result<Reply, HttpFailure> {
-        transport::validate(&req, peer, local, self.credential.as_ref())?;
+        transport::validate_target(&req, peer, local, &self.hosts)?;
+
+        if req.method() == Method::GET && req.uri().path() == DISCOVERY_PATH {
+            return Ok(match &self.discovery {
+                Some(doc) => json_reply(StatusCode::OK, doc.to_vec()),
+                None => empty(StatusCode::NOT_FOUND),
+            });
+        }
+
+        transport::validate_call(&req, self.credential.as_ref())?;
+
+        let ctx = context(&req);
 
         let permit = Arc::clone(&self.capacity)
             .try_acquire_owned()
@@ -256,6 +233,7 @@ impl Inner {
             cb,
             method,
             params: msg["params"].take(),
+            ctx,
             permit,
         };
 
@@ -311,7 +289,18 @@ struct Invocation<'a> {
     cb: &'a Callback,
     method: &'static str,
     params: Value,
+    ctx: CallContext,
     permit: OwnedSemaphorePermit,
+}
+
+fn context(req: &Request<Incoming>) -> CallContext {
+    CallContext {
+        client: req
+            .headers()
+            .get(ACLP_CLIENT)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned),
+    }
 }
 
 async fn connection(
@@ -357,19 +346,35 @@ impl Server {
     /// # Errors
     ///
     /// Returns [`ConfigError::Authorization`] when the configured authorization is not an HTTP
-    /// scheme followed by a single-line credential.
+    /// scheme followed by a single-line credential, [`ConfigError::Hosts`] for invalid public host
+    /// names or public hosts without authorization, and [`ConfigError::Discovery`] when the
+    /// discovery document would be invalid.
     pub fn new(callbacks: Callbacks, opts: ServerOptions) -> Result<Self, ConfigError> {
         let credential = opts
             .authorization
             .map(|v| Credential::parse(&v).ok_or(ConfigError::Authorization))
             .transpose()?;
 
+        let hosts = transport::public_hosts(&opts.hosts).ok_or(ConfigError::Hosts)?;
+
+        if !hosts.is_empty() && credential.is_none() {
+            return Err(ConfigError::Hosts);
+        }
+
         validation::warm();
+
+        let discovery = opts
+            .discovery
+            .as_ref()
+            .map(|d| discovery_document(&callbacks.map, d, credential.as_ref()))
+            .transpose()?;
 
         Ok(Server {
             inner: Arc::new(Inner {
                 callbacks: callbacks.map,
                 credential,
+                hosts,
+                discovery,
                 on_error: opts.on_error,
                 capacity: Arc::new(Semaphore::new(MAX_ACTIVE_CALLBACKS)),
                 tasks: TaskTracker::new(),
@@ -379,7 +384,8 @@ impl Server {
 
     /// Accepts connections on `listener` until `shutdown` completes, then drains.
     ///
-    /// Bind the listener to a loopback address; requests from other peers are rejected regardless.
+    /// Bind the listener to a loopback address unless public hosts are named; loopback names are
+    /// rejected from other peers regardless.
     /// After `shutdown`, the server stops accepting, lets open connections finish their current
     /// exchange, and waits for every admitted callback, including notifications, to complete.
     /// Connections beyond 64 are closed on accept.

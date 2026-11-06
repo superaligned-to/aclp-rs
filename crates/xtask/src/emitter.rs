@@ -15,7 +15,8 @@ const ENVELOPES: [&str; 7] = [
     "ErrorResponse",
 ];
 
-const RENAMES: [(&str, &str); 5] = [
+const RENAMES: [(&str, &str); 6] = [
+    ("DiscoveryAuthMethods", "AuthMethod"),
     ("CatalogChangedCatalog", "Catalog"),
     ("NotificationCreatedLevel", "NotificationLevel"),
     ("OperationResourceAccess", "ResourceAccess"),
@@ -23,7 +24,7 @@ const RENAMES: [(&str, &str); 5] = [
     ("WorkspaceChangedChange", "WorkspaceChange"),
 ];
 
-const HEADER: &str = "//! Standard ACLP event parameters generated from the pinned protocol schema.
+const HEADER: &str = "//! Standard ACLP event parameters and discovery types generated from the pinned protocol schema.
 //!
 //! Regenerate with `cargo xtask generate`; the gate rejects hand edits.
 

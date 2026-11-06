@@ -65,7 +65,10 @@ mod callback_error;
 mod callbacks;
 mod client;
 mod client_error;
+mod client_options;
 mod config_error;
+mod connection;
+mod discover;
 mod event;
 #[expect(
     missing_docs,
@@ -77,15 +80,19 @@ mod local_schema;
 mod result_schema;
 mod semantics;
 mod server;
+mod server_options;
 mod transport;
 mod validation;
 
 pub use callback_error::CallbackError;
-pub use callbacks::Callbacks;
-pub use client::{Client, ClientOptions};
+pub use callbacks::{CallContext, Callbacks};
+pub use client::Client;
 pub use client_error::{ClientError, FlushError};
+pub use client_options::ClientOptions;
 pub use config_error::ConfigError;
+pub use discover::{DISCOVERY_PATH, DiscoverOptions, discover};
 pub use event::Event;
 pub use local_schema::SchemaError;
 pub use result_schema::ResultSchema;
-pub use server::{Server, ServerOptions};
+pub use server::Server;
+pub use server_options::{Discovery, ServerOptions};

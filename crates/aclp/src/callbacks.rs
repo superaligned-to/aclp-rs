@@ -14,7 +14,17 @@ use crate::result_schema::ResultSchema;
 
 type Outcome = Pin<Box<dyn Future<Output = Result<Value, CallbackError>> + Send>>;
 
-pub(crate) type Handler = Arc<dyn Fn(Value) -> Outcome + Send + Sync>;
+pub(crate) type Handler = Arc<dyn Fn(Value, CallContext) -> Outcome + Send + Sync>;
+
+/// What the transport knows about one call besides its parameters.
+///
+/// The client identity is self-reported; authorize on credentials, never on it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct CallContext {
+    /// The raw `ACLP-Client` header, when present.
+    pub client: Option<String>,
+}
 
 #[derive(Clone)]
 pub(crate) struct Callback {
@@ -41,14 +51,14 @@ fn erase<P, T, F, Fut, E>(handle: F) -> Handler
 where
     P: Event,
     T: Serialize,
-    F: Fn(P) -> Fut + Send + Sync + 'static,
+    F: Fn(P, CallContext) -> Fut + Send + Sync + 'static,
     Fut: Future<Output = Result<T, E>> + Send + 'static,
     E: Into<Box<dyn Error + Send + Sync>>,
 {
     let method = P::METHOD;
 
-    Arc::new(move |params: Value| -> Outcome {
-        let call = serde_json::from_value::<P>(params).map(&handle);
+    Arc::new(move |params: Value, ctx: CallContext| -> Outcome {
+        let call = serde_json::from_value::<P>(params).map(|p| handle(p, ctx));
 
         Box::pin(async move {
             let call = call.map_err(|source| CallbackError::Params { method, source })?;
@@ -71,11 +81,24 @@ impl Callbacks {
 
     /// Serves requests and notifications of `P`; requests reply with the result once it satisfies `result`.
     #[must_use]
-    pub fn request<P, T, F, Fut, E>(mut self, result: &ResultSchema<T>, handle: F) -> Self
+    pub fn request<P, T, F, Fut, E>(self, result: &ResultSchema<T>, handle: F) -> Self
     where
         P: Event,
         T: Serialize,
         F: Fn(P) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<T, E>> + Send + 'static,
+        E: Into<Box<dyn Error + Send + Sync>>,
+    {
+        self.request_with(result, move |p, _| handle(p))
+    }
+
+    /// Like [`Callbacks::request`], and the callback also receives the call's [`CallContext`].
+    #[must_use]
+    pub fn request_with<P, T, F, Fut, E>(mut self, result: &ResultSchema<T>, handle: F) -> Self
+    where
+        P: Event,
+        T: Serialize,
+        F: Fn(P, CallContext) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<T, E>> + Send + 'static,
         E: Into<Box<dyn Error + Send + Sync>>,
     {
@@ -91,10 +114,22 @@ impl Callbacks {
 
     /// Serves notifications of `P`; requests for `P` are answered as method not found.
     #[must_use]
-    pub fn notification<P, F, Fut, E>(mut self, handle: F) -> Self
+    pub fn notification<P, F, Fut, E>(self, handle: F) -> Self
     where
         P: Event,
         F: Fn(P) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<(), E>> + Send + 'static,
+        E: Into<Box<dyn Error + Send + Sync>>,
+    {
+        self.notification_with(move |p, _| handle(p))
+    }
+
+    /// Like [`Callbacks::notification`], and the callback also receives the call's [`CallContext`].
+    #[must_use]
+    pub fn notification_with<P, F, Fut, E>(mut self, handle: F) -> Self
+    where
+        P: Event,
+        F: Fn(P, CallContext) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<(), E>> + Send + 'static,
         E: Into<Box<dyn Error + Send + Sync>>,
     {

@@ -1,4 +1,4 @@
-//! Standard ACLP event parameters generated from the pinned protocol schema.
+//! Standard ACLP event parameters and discovery types generated from the pinned protocol schema.
 //!
 //! Regenerate with `cargo xtask generate`; the gate rejects hand edits.
 
@@ -1202,6 +1202,80 @@ pub struct ErrorOccurredParams {
     pub operation: Option<Operation>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SoftwareRef {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClientInfo {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub harness: Option<SoftwareRef>,
+}
+
+/// Parameters of the `client.registered` event.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClientRegisteredParams {
+    pub client: ClientInfo,
+    pub events: Vec<String>,
+}
+
+/// Parameters of the `client.updated` event.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClientUpdatedParams {
+    pub client: ClientInfo,
+    pub events: Vec<String>,
+}
+
+/// Parameters of the `client.unregistered` event.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClientUnregisteredParams {
+    pub client: ClientInfo,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OAuthMetadata {
+    pub issuer: String,
+    pub authorization_endpoint: String,
+    pub token_endpoint: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_authorization_endpoint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scopes_supported: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiscoveryAuth {
+    pub methods: Vec<AuthMethod>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oauth: Option<OAuthMetadata>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AuthMethod {
+    #[serde(rename = "token")]
+    Token,
+    #[serde(rename = "oauth")]
+    Oauth,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiscoveryDocument {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    pub endpoint: String,
+    pub auth: DiscoveryAuth,
+    pub events: Vec<String>,
+    pub requests: Vec<String>,
+}
+
 impl Sealed for SessionStartedParams {}
 
 impl Event for SessionStartedParams {
@@ -1442,7 +1516,25 @@ impl Event for ErrorOccurredParams {
     const METHOD: &'static str = "error.occurred";
 }
 
-pub(crate) const DEFINITIONS: [(&str, &str); 40] = [
+impl Sealed for ClientRegisteredParams {}
+
+impl Event for ClientRegisteredParams {
+    const METHOD: &'static str = "client.registered";
+}
+
+impl Sealed for ClientUpdatedParams {}
+
+impl Event for ClientUpdatedParams {
+    const METHOD: &'static str = "client.updated";
+}
+
+impl Sealed for ClientUnregisteredParams {}
+
+impl Event for ClientUnregisteredParams {
+    const METHOD: &'static str = "client.unregistered";
+}
+
+pub(crate) const DEFINITIONS: [(&str, &str); 43] = [
     ("session.started", "SessionStartedParams"),
     ("session.ended", "SessionEndedParams"),
     ("input.submitted", "InputSubmittedParams"),
@@ -1492,6 +1584,9 @@ pub(crate) const DEFINITIONS: [(&str, &str); 40] = [
     ("model.changed", "ModelChangedParams"),
     ("notification.created", "NotificationCreatedParams"),
     ("error.occurred", "ErrorOccurredParams"),
+    ("client.registered", "ClientRegisteredParams"),
+    ("client.updated", "ClientUpdatedParams"),
+    ("client.unregistered", "ClientUnregisteredParams"),
 ];
 
 #[cfg(test)]
@@ -1613,6 +1708,14 @@ pub(crate) fn round_trip(method: &str, params: Value) -> serde_json::Result<Valu
         "error.occurred" => {
             serde_json::from_value::<ErrorOccurredParams>(params).and_then(serde_json::to_value)
         }
+        "client.registered" => {
+            serde_json::from_value::<ClientRegisteredParams>(params).and_then(serde_json::to_value)
+        }
+        "client.updated" => {
+            serde_json::from_value::<ClientUpdatedParams>(params).and_then(serde_json::to_value)
+        }
+        "client.unregistered" => serde_json::from_value::<ClientUnregisteredParams>(params)
+            .and_then(serde_json::to_value),
         _ => Err(serde::de::Error::custom("unknown method")),
     }
 }

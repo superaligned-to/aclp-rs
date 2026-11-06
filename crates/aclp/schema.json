@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "urn:aclp:callbacks:v1",
-  "title": "ACLP callback profile v1: standard messages",
-  "description": "Proposed profile. Validate the generic envelope before resolving a method. StandardInvocation binds the complete standard method catalog to its parameter schemas; custom installed methods validate against their installed schemas. Success result values are narrowed by each installed integration. Semantic checks remain documented separately.",
+  "title": "ACLP standard messages",
+  "description": "Validates standard invocations and reply envelopes. Generic envelope definitions classify a message before method lookup; installed result schemas narrow success results, and the protocol document defines the semantic checks schemas cannot express.",
   "oneOf": [
     {
       "$ref": "#/definitions/StandardInvocation"
@@ -2740,6 +2740,213 @@
         ]
       }
     },
+    "MethodName": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "pattern": "^rpc\\."
+      }
+    },
+    "SoftwareRef": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "version": {
+          "$ref": "#/definitions/NonemptyText"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "ClientInfo": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "version": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "harness": {
+          "$ref": "#/definitions/SoftwareRef"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "ClientRegisteredParams": {
+      "type": "object",
+      "properties": {
+        "client": {
+          "$ref": "#/definitions/ClientInfo"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MethodName"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "client",
+        "events"
+      ],
+      "additionalProperties": false
+    },
+    "ClientUpdatedParams": {
+      "type": "object",
+      "properties": {
+        "client": {
+          "$ref": "#/definitions/ClientInfo"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MethodName"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "client",
+        "events"
+      ],
+      "additionalProperties": false
+    },
+    "ClientUnregisteredParams": {
+      "type": "object",
+      "properties": {
+        "client": {
+          "$ref": "#/definitions/ClientInfo"
+        }
+      },
+      "required": [
+        "client"
+      ],
+      "additionalProperties": false
+    },
+    "OAuthMetadata": {
+      "type": "object",
+      "properties": {
+        "issuer": {
+          "$ref": "#/definitions/Uri"
+        },
+        "authorization_endpoint": {
+          "$ref": "#/definitions/Uri"
+        },
+        "token_endpoint": {
+          "$ref": "#/definitions/Uri"
+        },
+        "device_authorization_endpoint": {
+          "$ref": "#/definitions/Uri"
+        },
+        "client_id": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "scopes_supported": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/NonemptyText"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "issuer",
+        "authorization_endpoint",
+        "token_endpoint"
+      ],
+      "additionalProperties": false
+    },
+    "DiscoveryAuth": {
+      "type": "object",
+      "properties": {
+        "methods": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "token",
+              "oauth"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "oauth": {
+          "$ref": "#/definitions/OAuthMetadata"
+        }
+      },
+      "required": [
+        "methods"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "methods": {
+                "contains": {
+                  "const": "oauth"
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "oauth"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "oauth"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "DiscoveryDocument": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "endpoint": {
+          "$ref": "#/definitions/Uri"
+        },
+        "auth": {
+          "$ref": "#/definitions/DiscoveryAuth"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MethodName"
+          },
+          "uniqueItems": true
+        },
+        "requests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MethodName"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "endpoint",
+        "auth",
+        "events",
+        "requests"
+      ],
+      "additionalProperties": false
+    },
     "RequestEnvelope": {
       "type": "object",
       "properties": {
@@ -3362,6 +3569,48 @@
                 },
                 "params": {
                   "$ref": "#/definitions/ErrorOccurredParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "client.registered"
+                },
+                "params": {
+                  "$ref": "#/definitions/ClientRegisteredParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "client.updated"
+                },
+                "params": {
+                  "$ref": "#/definitions/ClientUpdatedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "client.unregistered"
+                },
+                "params": {
+                  "$ref": "#/definitions/ClientUnregisteredParams"
                 }
               },
               "required": [

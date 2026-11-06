@@ -9,7 +9,7 @@ use crate::Failure;
 pub(crate) const MAX_MODULE_LINES: usize = 400;
 
 // Every entry states the need it serves; adding a runtime dependency means adding a reason here.
-pub(crate) const RUNTIME_DEPENDENCIES: [(&str, &str); 12] = [
+pub(crate) const RUNTIME_DEPENDENCIES: [(&str, &str); 15] = [
     (
         "http-body-util",
         "bounded request and response body collection",
@@ -23,23 +23,32 @@ pub(crate) const RUNTIME_DEPENDENCIES: [(&str, &str); 12] = [
         "jsonschema",
         "Draft-07 validation with format checks and offline references",
     ),
+    (
+        "rustls",
+        "HTTPS for remote endpoints, behind the default tls feature",
+    ),
     ("serde", "typed event parameters and results"),
     ("serde_json", "JSON values with preserved member order"),
     ("sha2", "length-hiding credential comparison"),
     ("thiserror", "library error types"),
     ("tokio", "async sockets, deadlines and capacity semaphores"),
+    ("tokio-rustls", "async TLS streams for the HTTPS client"),
     (
         "tokio-util",
         "callback task tracking and shutdown cancellation",
     ),
     ("tracing", "default diagnostics sink"),
     ("uuid", "fresh random request ids"),
+    (
+        "webpki-roots",
+        "bundled web PKI roots, so HTTPS works without system certificate access",
+    ),
 ];
 
 pub(crate) const MAX_RUNTIME_DEPENDENCIES: usize = RUNTIME_DEPENDENCIES.len();
 
 // Build scripts run arbitrary code at compile time; each crate in the runtime graph that has one is reviewed here.
-pub(crate) const BUILD_SCRIPTS: [&str; 20] = [
+pub(crate) const BUILD_SCRIPTS: [&str; 30] = [
     "ahash",
     "getrandom",
     "httparse",
@@ -50,6 +59,8 @@ pub(crate) const BUILD_SCRIPTS: [&str; 20] = [
     "proc-macro2",
     "quote",
     "ref-cast",
+    "ring",
+    "rustls",
     "serde",
     "serde_core",
     "serde_json",
@@ -57,6 +68,14 @@ pub(crate) const BUILD_SCRIPTS: [&str; 20] = [
     "unicode-general-category",
     "wasm-bindgen",
     "wasm-bindgen-shared",
+    "windows_aarch64_gnullvm",
+    "windows_aarch64_msvc",
+    "windows_i686_gnu",
+    "windows_i686_gnullvm",
+    "windows_i686_msvc",
+    "windows_x86_64_gnu",
+    "windows_x86_64_gnullvm",
+    "windows_x86_64_msvc",
     "wit-bindgen",
     "zerocopy",
     "zmij",

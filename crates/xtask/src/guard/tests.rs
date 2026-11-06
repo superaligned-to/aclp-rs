@@ -33,7 +33,7 @@ fn module(lines: usize) -> SourceFile {
 #[test]
 fn ceilings_keep_their_documented_values() {
     assert_eq!(MAX_MODULE_LINES, 400);
-    assert_eq!(MAX_RUNTIME_DEPENDENCIES, 12);
+    assert_eq!(MAX_RUNTIME_DEPENDENCIES, 15);
 }
 
 #[test]
@@ -68,7 +68,7 @@ fn unreviewed_or_excess_dependencies_fail() {
     assert_eq!(
         errors,
         [
-            "runtime dependencies exceed 12",
+            "runtime dependencies exceed 15",
             "runtime dependency has no recorded reason: left-pad",
         ]
     );

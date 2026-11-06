@@ -12,23 +12,31 @@ categories = ["network-programming", "api-bindings"]
 exclude = ["tests/interop", "tests/interop.rs"]
 
 [dependencies]
-http-body-util = "0.1.5"
-hyper = { version = "1.12.0", features = ["http1", "server", "client"] }
-hyper-util = { version = "0.1.21", features = ["tokio"] }
+http-body-util = "0.1.2"
+hyper = { version = "1.11", features = ["http1", "server", "client"] }
+hyper-util = { version = "0.1.10", features = ["tokio"] }
 jsonschema = { version = "0.60.2", default-features = false }
-serde = { version = "1.0.229", features = ["derive"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"], optional = true }
+serde = { version = "1.0.220", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["float_roundtrip", "preserve_order"] }
 sha2 = "0.11.1"
-thiserror = "2.0.21"
-tokio = { version = "1.54.1", features = ["net", "rt", "time", "sync", "macros"] }
-tokio-util = { version = "0.7.20", features = ["rt"] }
-tracing = "0.1.44"
-uuid = { version = "1.29.0", features = ["v4"] }
+thiserror = "2.0"
+tokio = { version = "1.51", features = ["net", "rt", "time", "sync", "macros"] }
+tokio-rustls = { version = "0.26.1", default-features = false, features = ["ring", "tls12"], optional = true }
+tokio-util = { version = "0.7.11", features = ["rt"] }
+tracing = "0.1.40"
+uuid = { version = "1.10", features = ["v4"] }
+webpki-roots = { version = "1.0", optional = true }
 
 [dev-dependencies]
 base64 = "0.23.1"
 proptest = { version = "1", default-features = false, features = ["std"] }
-tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "time", "io-util", "process"] }
+rcgen = { version = "0.14.10", default-features = false, features = ["crypto", "pem", "ring"] }
+tokio = { version = "1.51", features = ["rt-multi-thread", "macros", "net", "time", "io-util", "process"] }
 
 [lints]
 workspace = true
+
+[features]
+default = ["tls"]
+tls = ["dep:rustls", "dep:tokio-rustls", "dep:webpki-roots"]

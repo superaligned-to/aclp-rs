@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::time::Duration;
 
@@ -76,19 +77,13 @@ fn is_loopback(ip: IpAddr) -> bool {
     }
 }
 
-fn host_matches(val: &HeaderValue, local_port: u16) -> bool {
-    let Ok(val) = val.to_str() else {
-        return false;
-    };
+fn split_host(val: &HeaderValue) -> Option<(String, Option<u16>)> {
+    let val = val.to_str().ok()?;
 
     let (host, port) = match val.strip_prefix('[') {
-        Some(literal) => match literal.split_once(']') {
-            Some((addr, "")) => (format!("[{addr}]"), None),
-            Some((addr, after)) => match after.strip_prefix(':') {
-                Some(port) => (format!("[{addr}]"), Some(port)),
-                None => return false,
-            },
-            None => return false,
+        Some(literal) => match literal.split_once(']')? {
+            (addr, "") => (format!("[{addr}]"), None),
+            (addr, after) => (format!("[{addr}]"), Some(after.strip_prefix(':')?)),
         },
         None => match val.split_once(':') {
             Some((host, port)) => (host.to_owned(), Some(port)),
@@ -97,12 +92,49 @@ fn host_matches(val: &HeaderValue, local_port: u16) -> bool {
     };
 
     let port = match port {
-        None => Some(80),
-        Some(p) if p.starts_with('0') || !p.bytes().all(|b| b.is_ascii_digit()) => None,
-        Some(p) => p.parse::<u16>().ok(),
+        None => None,
+        Some(p) if p.starts_with('0') || !p.bytes().all(|b| b.is_ascii_digit()) => return None,
+        Some(p) => Some(p.parse::<u16>().ok()?),
     };
 
-    HOSTS.iter().any(|h| host.eq_ignore_ascii_case(h)) && port == Some(local_port)
+    (!host.is_empty()).then(|| (host.to_ascii_lowercase(), port))
+}
+
+fn host_matches(val: &HeaderValue, local_port: u16, named: &HashSet<String>) -> Option<Target> {
+    let (host, port) = split_host(val)?;
+
+    if named.contains(&host) {
+        return Some(Target::Named);
+    }
+
+    (HOSTS.contains(&host.as_str()) && port.unwrap_or(80) == local_port).then_some(Target::Loopback)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Target {
+    Loopback,
+    Named,
+}
+
+/// Accepts plain host names for deployments behind TLS; ports are not part of a name.
+pub(crate) fn public_hosts<I, S>(names: I) -> Option<HashSet<String>>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    names
+        .into_iter()
+        .map(|name| {
+            let name = name.as_ref().to_ascii_lowercase();
+
+            let valid = !name.is_empty()
+                && name
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'.');
+
+            valid.then_some(name)
+        })
+        .collect()
 }
 
 fn is_json(val: Option<&HeaderValue>) -> bool {
@@ -111,34 +143,50 @@ fn is_json(val: Option<&HeaderValue>) -> bool {
         .is_some_and(|v| v.trim().eq_ignore_ascii_case("application/json"))
 }
 
-/// Checks peers, request target, origin, credentials, method, media type and declared size.
-pub(crate) fn validate(
+/// Checks the peer, Host, request target and origin: loopback by default, or a named public host.
+pub(crate) fn validate_target(
     req: &Request<Incoming>,
     peer: SocketAddr,
     local: SocketAddr,
-    credential: Option<&Credential>,
+    named: &HashSet<String>,
 ) -> Result<(), HttpFailure> {
     let forbidden = Err(HttpFailure(StatusCode::FORBIDDEN));
-
-    if !is_loopback(peer.ip()) || !is_loopback(local.ip()) {
-        return forbidden;
-    }
 
     let headers = req.headers();
 
     let mut hosts = headers.get_all(HOST).iter();
 
-    let host_ok =
-        hosts.next().is_some_and(|h| host_matches(h, local.port())) && hosts.next().is_none();
+    let target = hosts
+        .next()
+        .and_then(|h| host_matches(h, local.port(), named))
+        .filter(|_| hosts.next().is_none());
+
+    let Some(target) = target else {
+        return forbidden;
+    };
+
+    if target == Target::Loopback && (!is_loopback(peer.ip()) || !is_loopback(local.ip())) {
+        return forbidden;
+    }
 
     let path = req.uri().path();
 
     let origin_form =
         req.uri().authority().is_none() && path.starts_with('/') && !path.starts_with("//");
 
-    if !host_ok || !origin_form || headers.contains_key(ORIGIN) {
+    if !origin_form || headers.contains_key(ORIGIN) {
         return forbidden;
     }
+
+    Ok(())
+}
+
+/// Checks credentials, method, media type and declared size of an ACLP POST.
+pub(crate) fn validate_call(
+    req: &Request<Incoming>,
+    credential: Option<&Credential>,
+) -> Result<(), HttpFailure> {
+    let headers = req.headers();
 
     if let Some(credential) = credential {
         let mut supplied = headers.get_all(AUTHORIZATION).iter();
@@ -188,7 +236,11 @@ mod tests {
 
     #[test]
     fn host_must_name_loopback_and_the_listening_port() {
-        let ok = |v: &str, port| host_matches(&HeaderValue::from_str(v).expect("header"), port);
+        let none = HashSet::new();
+
+        let ok = |v: &str, port| {
+            host_matches(&HeaderValue::from_str(v).expect("header"), port, &none).is_some()
+        };
 
         assert!(ok("127.0.0.1:8787", 8787));
         assert!(ok("LOCALHOST:8787", 8787));
@@ -202,6 +254,22 @@ mod tests {
         assert!(!ok("[::1]8787", 8787));
         assert!(!ok("user@localhost:8787", 8787));
         assert!(!ok("localhost:8787/x", 8787));
+    }
+
+    #[test]
+    fn named_public_hosts_match_with_any_port() {
+        let named = public_hosts(["ACLP.example.com"]).expect("valid names");
+
+        let target =
+            |v: &str| host_matches(&HeaderValue::from_str(v).expect("header"), 8787, &named);
+
+        assert_eq!(target("aclp.example.com"), Some(Target::Named));
+        assert_eq!(target("aclp.example.com:443"), Some(Target::Named));
+        assert_eq!(target("other.example.com"), None);
+        assert_eq!(target("127.0.0.1:8787"), Some(Target::Loopback));
+        assert!(public_hosts(["aclp.example.com:443"]).is_none());
+        assert!(public_hosts(["https://aclp.example.com"]).is_none());
+        assert!(public_hosts([""]).is_none());
     }
 
     #[test]

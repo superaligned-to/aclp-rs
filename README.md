@@ -1,6 +1,6 @@
 # aclp-rs
 
-Rust client and callback server for the [Agent Context Lifecycle Protocol](https://github.com/superaligned-to/aclp). The client sends typed lifecycle events over loopback HTTP; the server validates them, runs your callbacks and checks their results against a JSON Schema.
+Rust client and callback server for the [Agent Context Lifecycle Protocol](https://github.com/superaligned-to/aclp). The client sends typed lifecycle events to local or remote servers over HTTP or HTTPS; the server validates them, runs your callbacks and checks their results against a JSON Schema.
 
 ```toml
 [dependencies]

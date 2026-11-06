@@ -3,13 +3,24 @@ use std::process::Command;
 
 use crate::Failure;
 
-const STEPS: [&[&str]; 7] = [
+const STEPS: [&[&str]; 8] = [
     &["fmt", "--all", "--check"],
     &[
         "clippy",
         "--workspace",
         "--all-targets",
         "--all-features",
+        "--locked",
+        "--",
+        "-D",
+        "warnings",
+    ],
+    &[
+        "clippy",
+        "--package",
+        "aclp",
+        "--no-default-features",
+        "--all-targets",
         "--locked",
         "--",
         "-D",

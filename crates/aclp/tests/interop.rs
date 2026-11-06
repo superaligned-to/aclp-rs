@@ -1,15 +1,16 @@
 //! Interoperability with the TypeScript SDK; run with `cargo xtask interop <aclp-ts checkout>`.
 
 mod common;
+#[path = "interop/harness.rs"]
+mod harness;
 
 use std::collections::BTreeSet;
 use std::convert::Infallible;
-use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use std::time::Duration;
 
 use aclp::events::{
     AgentFinishedParams, AgentRequestedParams, AgentStartedParams, CatalogChangedParams,
+    ClientInfo, ClientRegisteredParams, ClientUnregisteredParams, ClientUpdatedParams,
     ConfigurationChangedParams, ContextCompactionFinishedParams, ContextCompactionRequestedParams,
     ContextSourceLoadedParams, ErrorOccurredParams, HandoffFinishedParams, HandoffRequestedParams,
     InputSubmittedParams, InteractionRequestedParams, InteractionResolvedParams,
@@ -17,20 +18,44 @@ use aclp::events::{
     ModelRequestedParams, NotificationCreatedParams, PermissionRequestedParams,
     PermissionResolvedParams, PlanUpdatedParams, ResourceChangedParams,
     RunCancellationRequestedParams, RunFinishedParams, RunFinishingParams, RunPausedParams,
-    RunResumedParams, RunStartedParams, SessionEndedParams, SessionStartedParams,
+    RunResumedParams, RunStartedParams, SessionEndedParams, SessionStartedParams, SoftwareRef,
     TaskCreatedParams, TaskFinishedParams, TaskUpdatedParams, ToolBatchFinishedParams,
     ToolFinishedParams, ToolRequestedParams, ToolStartedParams, WorkspaceChangedParams,
 };
-use aclp::{Callbacks, Client, ClientError, ClientOptions, Event, ResultSchema, ServerOptions};
+use aclp::{
+    CallContext, Callbacks, Client, ClientError, ClientOptions, DiscoverOptions, Discovery, Event,
+    ResultSchema, ServerOptions, discover,
+};
 use common::{ContextReply, Raw, context_schema, exchange, request_bytes, start};
+use harness::Peer;
 use serde_json::{Value, json};
-use tokio::io::{AsyncBufReadExt, BufReader, Lines};
-use tokio::process::{Child, ChildStdout, Command};
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
 const AUTH: &str = "Bearer interop";
 
 const MAX_BODY_BYTES: usize = 1_048_576;
+
+const PUBLIC_HOST: &str = "aclp.example.com";
+
+type Seen = (&'static str, Option<String>);
+
+fn identity() -> ClientInfo {
+    ClientInfo {
+        name: "interop".to_owned(),
+        version: Some("1.0.0".to_owned()),
+        harness: Some(SoftwareRef {
+            name: "rust".to_owned(),
+            version: Some("1".to_owned()),
+        }),
+    }
+}
+
+fn server_options() -> ServerOptions {
+    ServerOptions::new()
+        .authorization(AUTH)
+        .hosts([PUBLIC_HOST])
+        .discovery(Discovery::new("https://aclp.example.com/events").name("Interop"))
+}
 
 macro_rules! events {
     ($apply:ident) => {
@@ -74,7 +99,10 @@ macro_rules! events {
             ConfigurationChangedParams,
             ModelChangedParams,
             NotificationCreatedParams,
-            ErrorOccurredParams
+            ErrorOccurredParams,
+            ClientRegisteredParams,
+            ClientUpdatedParams,
+            ClientUnregisteredParams
         )
     };
 }
@@ -123,7 +151,7 @@ fn notify(client: &Client, method: &str, params: Value) {
     panic!("unknown method {method}");
 }
 
-fn observing(tx: &UnboundedSender<&'static str>) -> Callbacks {
+fn observing(tx: &UnboundedSender<Seen>) -> Callbacks {
     let mut callbacks = Callbacks::new();
 
     macro_rules! observe {
@@ -131,8 +159,8 @@ fn observing(tx: &UnboundedSender<&'static str>) -> Callbacks {
             $(
                 let sink = tx.clone();
 
-                callbacks = callbacks.notification(move |_: $t| {
-                    let _ = sink.send(<$t as Event>::METHOD);
+                callbacks = callbacks.notification_with(move |_: $t, ctx: CallContext| {
+                    let _ = sink.send((<$t as Event>::METHOD, ctx.client));
 
                     async { Ok::<_, Infallible>(()) }
                 });
@@ -144,73 +172,29 @@ fn observing(tx: &UnboundedSender<&'static str>) -> Callbacks {
 
     let sink = tx.clone();
 
-    let callbacks = callbacks.request(&context_schema(), move |input: InputSubmittedParams| {
-        let _ = sink.send(InputSubmittedParams::METHOD);
+    let callbacks = callbacks.request_with(
+        &context_schema(),
+        move |input: InputSubmittedParams, ctx: CallContext| {
+            let _ = sink.send((InputSubmittedParams::METHOD, ctx.client));
 
-        async move {
-            Ok::<_, Infallible>(ContextReply {
-                context: vec![format!("rs:{}", input.content.len())],
-            })
-        }
-    });
+            async move {
+                Ok::<_, Infallible>(ContextReply {
+                    context: vec![format!("rs:{}", input.content.len())],
+                })
+            }
+        },
+    );
 
     let sink = tx.clone();
 
-    callbacks.request(&strict(), move |_: SessionStartedParams| {
-        let _ = sink.send(SessionStartedParams::METHOD);
+    callbacks.request_with(
+        &strict(),
+        move |_: SessionStartedParams, ctx: CallContext| {
+            let _ = sink.send((SessionStartedParams::METHOD, ctx.client));
 
-        async { Ok::<_, Infallible>(json!({})) }
-    })
-}
-
-struct Peer {
-    _child: Child,
-    lines: Lines<BufReader<ChildStdout>>,
-}
-
-impl Peer {
-    async fn spawn(args: &[&str]) -> Peer {
-        let sdk = std::env::var("ACLP_TS")
-            .expect("ACLP_TS names an aclp-ts checkout; use cargo xtask interop");
-
-        let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/interop/peer.mjs");
-
-        let mut child = Command::new("node")
-            .arg(script)
-            .arg(args[0])
-            .arg(PathBuf::from(sdk))
-            .args(&args[1..])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()
-            .expect("node starts");
-
-        let stdout = child.stdout.take().expect("piped stdout");
-
-        Peer {
-            _child: child,
-            lines: BufReader::new(stdout).lines(),
-        }
-    }
-
-    async fn line(&mut self) -> Value {
-        let line = tokio::time::timeout(Duration::from_secs(20), self.lines.next_line())
-            .await
-            .expect("peer answers in time")
-            .expect("peer stdout readable")
-            .expect("peer still running");
-
-        serde_json::from_str(&line).expect("peer writes JSON lines")
-    }
-
-    async fn port(&mut self) -> u16 {
-        let port = self.line().await["port"]
-            .as_u64()
-            .expect("peer reports its port");
-
-        u16::try_from(port).expect("TCP port")
-    }
+            async { Ok::<_, Infallible>(json!({})) }
+        },
+    )
 }
 
 #[tokio::test]
@@ -220,19 +204,27 @@ async fn typescript_server_accepts_every_rust_event() {
 
     let url = format!("http://127.0.0.1:{}/events", ts.port().await);
 
-    let client = Client::new(ClientOptions::new(&url).authorization(AUTH)).expect("client config");
+    let client = Client::new(
+        ClientOptions::new(&url)
+            .authorization(AUTH)
+            .client(identity()),
+    )
+    .expect("client config");
 
-    for (method, params) in examples() {
-        notify(&client, &method, params);
+    for batch in examples().chunks(16) {
+        for (method, params) in batch {
+            notify(&client, method, params.clone());
+        }
+
+        client.flush().await.expect("every notification admitted");
     }
-
-    client.flush().await.expect("every notification admitted");
 
     let mut seen = BTreeSet::new();
 
     while seen.len() < methods().len() {
         let received = ts.line().await;
 
+        assert_eq!(received["client"], "interop/1.0.0 rust/1", "{received}");
         seen.insert(
             received["received"]
                 .as_str()
@@ -296,7 +288,7 @@ async fn typescript_server_accepts_every_rust_event() {
 async fn rust_server_accepts_every_typescript_event() {
     let (tx, mut rx) = unbounded_channel();
 
-    let server = start(observing(&tx), ServerOptions::new().authorization(AUTH)).await;
+    let server = start(observing(&tx), server_options()).await;
 
     let mut ts = Peer::spawn(&["client", &server.url()]).await;
 
@@ -316,11 +308,12 @@ async fn rust_server_accepts_every_typescript_event() {
     let mut seen = BTreeSet::new();
 
     while seen.len() < methods().len() {
-        let method = tokio::time::timeout(Duration::from_secs(5), rx.recv())
+        let (method, client) = tokio::time::timeout(Duration::from_secs(5), rx.recv())
             .await
             .expect("callbacks run")
             .expect("server keeps the channel");
 
+        assert_eq!(client.as_deref(), Some("interop/1.0.0 node/26"), "{method}");
         seen.insert(method.to_owned());
     }
 
@@ -366,7 +359,7 @@ async fn servers_agree_on_status_codes_and_json_rpc_errors() {
 
     let (tx, _rx) = unbounded_channel();
 
-    let rs = start(observing(&tx), ServerOptions::new().authorization(AUTH)).await;
+    let rs = start(observing(&tx), server_options()).await;
 
     let with = |mut msg: Value, key: &str, val: Value| {
         msg[key] = val;
@@ -384,6 +377,9 @@ async fn servers_agree_on_status_codes_and_json_rpc_errors() {
     let cases: Vec<Case<'_>> = vec![
         ("valid request", "POST", vec![auth], input.to_string()),
         ("valid notification", "POST", vec![auth], tool.to_string()),
+        ("named public host", "POST", vec![auth, ("Host", PUBLIC_HOST)], tool.to_string()),
+        ("named public host with port", "POST", vec![auth, ("Host", "aclp.example.com:443")], tool.to_string()),
+        ("named public host without credentials", "POST", vec![("Host", PUBLIC_HOST)], tool.to_string()),
         ("missing credentials", "POST", vec![], tool.to_string()),
         ("wrong credentials", "POST", vec![("Authorization", "Bearer wrong")], tool.to_string()),
         ("foreign host", "POST", vec![auth, ("Host", "example.com")], tool.to_string()),
@@ -422,5 +418,50 @@ async fn servers_agree_on_status_codes_and_json_rpc_errors() {
         assert_eq!(outcome(&rs_raw), outcome(&ts_raw), "{name}");
     }
 
+    rs.stop().await;
+}
+
+fn discovery_request(port: u16) -> Vec<u8> {
+    format!("GET /.well-known/aclp HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n")
+        .into_bytes()
+}
+
+#[tokio::test]
+#[ignore = "needs Node and an aclp-ts build; run cargo xtask interop"]
+async fn discovery_documents_agree_across_sdks() {
+    let mut ts = Peer::spawn(&["server"]).await;
+
+    let ts_port = ts.port().await;
+
+    let (tx, _rx) = unbounded_channel();
+
+    let rs = start(observing(&tx), server_options()).await;
+
+    let from_ts = discover(
+        &format!("http://127.0.0.1:{ts_port}"),
+        DiscoverOptions::new(),
+    )
+    .await
+    .expect("Rust client reads the TypeScript document");
+
+    let mut reader = Peer::spawn(&["discover", &format!("http://127.0.0.1:{}", rs.port)]).await;
+
+    let from_rs = reader.line().await;
+
+    assert_eq!(
+        serde_json::to_value(&from_ts).expect("document JSON"),
+        from_rs
+    );
+    assert_eq!(from_ts.events.len(), methods().len());
+    assert_eq!(from_ts.requests, ["input.submitted", "session.started"]);
+
+    let ts_raw = exchange(ts_port, &discovery_request(ts_port)).await;
+
+    let rs_raw = exchange(rs.port, &discovery_request(rs.port)).await;
+
+    assert_eq!(
+        (rs_raw.status, rs_raw.json()),
+        (ts_raw.status, ts_raw.json())
+    );
     rs.stop().await;
 }

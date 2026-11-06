@@ -545,5 +545,46 @@
         "code": "CONFIG_LOAD"
       }
     }
+  ],
+  [
+    "client.registered",
+    {
+      "client": {
+        "name": "aclp-hooks",
+        "version": "0.1.0",
+        "harness": {
+          "name": "claude-code",
+          "version": "2.1.4"
+        }
+      },
+      "events": ["session.started", "input.submitted", "tool.finished"]
+    }
+  ],
+  [
+    "client.updated",
+    {
+      "client": {
+        "name": "aclp-hooks",
+        "version": "0.1.0",
+        "harness": {
+          "name": "claude-code",
+          "version": "2.1.4"
+        }
+      },
+      "events": ["session.started"]
+    }
+  ],
+  [
+    "client.unregistered",
+    {
+      "client": {
+        "name": "aclp-hooks",
+        "version": "0.1.0",
+        "harness": {
+          "name": "claude-code",
+          "version": "2.1.4"
+        }
+      }
+    }
   ]
 ]

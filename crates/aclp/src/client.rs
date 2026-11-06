@@ -1,95 +1,37 @@
+use std::collections::HashSet;
 use std::fmt;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
-use http_body_util::{BodyExt, Full, LengthLimitError, Limited};
 use hyper::body::Bytes;
-use hyper::header::{AUTHORIZATION, CONTENT_TYPE, HOST, HeaderMap, HeaderValue};
-use hyper::{Request, StatusCode, Uri};
-use hyper_util::rt::TokioIo;
+use hyper::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue};
+use hyper::{Method, StatusCode};
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
-use tokio::net::TcpStream;
 use tokio::sync::Notify;
 use tokio::time::{Instant, timeout_at};
 use uuid::Uuid;
 
 use crate::client_error::{ClientError, FlushError};
+use crate::client_options::{
+    Authorization, AuthorizationFn, ClientOptions, ErrorHook, client_header,
+};
 use crate::config_error::ConfigError;
+use crate::connection::{Endpoint, Reply};
 use crate::event::Event;
-use crate::json::{self, MAX_BODY_BYTES};
+use crate::json;
 use crate::result_schema::ResultSchema;
 use crate::validation;
 
 const MAX_PENDING: usize = 64;
 
-const MAX_HEADER_BYTES: usize = 16_384;
-
 const MAX_TIMEOUT: Duration = Duration::from_millis(2_147_483_647);
 
-type ErrorHook = Arc<dyn Fn(&ClientError) + Send + Sync>;
+const ACLP_CLIENT: HeaderName = HeaderName::from_static("aclp-client");
 
-/// Client configuration: a loopback endpoint, optional credentials, a deadline and a diagnostics hook.
-#[derive(Clone)]
-pub struct ClientOptions {
-    url: String,
-    authorization: Option<String>,
-    timeout: Duration,
-    on_error: Option<ErrorHook>,
-}
-
-impl ClientOptions {
-    /// Targets `url`, which must be `http://` on `127.0.0.1`, `[::1]` or `localhost`.
-    pub fn new(url: impl Into<String>) -> Self {
-        ClientOptions {
-            url: url.into(),
-            authorization: None,
-            timeout: Duration::from_secs(5),
-            on_error: None,
-        }
-    }
-
-    /// Sends this exact `Authorization` header value with every call.
-    #[must_use]
-    pub fn authorization(mut self, val: impl Into<String>) -> Self {
-        self.authorization = Some(val.into());
-        self
-    }
-
-    /// Sets the per-call deadline, which starts before local validation; the default is five seconds.
-    #[must_use]
-    pub fn timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
-        self
-    }
-
-    /// Receives each notification delivery failure; without it failures are logged with `tracing`.
-    #[must_use]
-    pub fn on_error(mut self, hook: impl Fn(&ClientError) + Send + Sync + 'static) -> Self {
-        self.on_error = Some(Arc::new(hook));
-        self
-    }
-}
-
-impl fmt::Debug for ClientOptions {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ClientOptions")
-            .field("url", &self.url)
-            .field(
-                "authorization",
-                &self.authorization.as_ref().map(|_| "<redacted>"),
-            )
-            .field("timeout", &self.timeout)
-            .finish_non_exhaustive()
-    }
-}
-
-#[derive(Debug)]
-struct Endpoint {
-    addr: SocketAddr,
-    host: HeaderValue,
-    path: String,
+enum Credential {
+    Fixed(HeaderValue),
+    Dynamic(AuthorizationFn),
 }
 
 #[derive(Debug, Default)]
@@ -101,14 +43,16 @@ struct State {
 
 struct Inner {
     endpoint: Endpoint,
-    authorization: Option<HeaderValue>,
+    credential: Option<Credential>,
+    identity: Option<HeaderValue>,
+    events: Option<HashSet<String>>,
     timeout: Duration,
     on_error: Option<ErrorHook>,
     state: Mutex<State>,
     drained: Notify,
 }
 
-/// Sends typed ACLP lifecycle events to one loopback callback server.
+/// Sends typed ACLP lifecycle events to one callback server.
 ///
 /// Clones share capacity, pending notifications and recorded failures. Requests are never retried
 /// or redirected. Each call uses its own HTTP/1.1 connection.
@@ -120,7 +64,7 @@ pub struct Client {
 impl fmt::Debug for Client {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Client")
-            .field("endpoint", &self.inner.endpoint.addr)
+            .field("endpoint", &self.inner.endpoint)
             .field("timeout", &self.inner.timeout)
             .finish_non_exhaustive()
     }
@@ -157,39 +101,11 @@ impl Drop for Slot {
     }
 }
 
-struct Reply {
-    status: StatusCode,
-    body: Bytes,
-}
+fn sensitive(val: &str) -> Option<HeaderValue> {
+    let mut val = HeaderValue::from_str(val).ok()?;
 
-fn endpoint(url: &str) -> Result<Endpoint, ConfigError> {
-    let uri: Uri = url.parse().map_err(|_| ConfigError::Endpoint)?;
-
-    let authority = uri.authority().ok_or(ConfigError::Endpoint)?;
-
-    let ip = match authority.host() {
-        "127.0.0.1" | "localhost" => IpAddr::V4(Ipv4Addr::LOCALHOST),
-        "[::1]" => IpAddr::V6(Ipv6Addr::LOCALHOST),
-        _ => return Err(ConfigError::Endpoint),
-    };
-
-    if uri.scheme_str() != Some("http") || authority.as_str().contains('@') || url.contains('#') {
-        return Err(ConfigError::Endpoint);
-    }
-
-    Ok(Endpoint {
-        addr: SocketAddr::new(ip, authority.port_u16().unwrap_or(80)),
-        host: HeaderValue::from_str(authority.as_str()).map_err(|_| ConfigError::Endpoint)?,
-        path: uri.path_and_query().map_or("/", |p| p.as_str()).to_owned(),
-    })
-}
-
-fn is_json(headers: &HeaderMap) -> bool {
-    headers
-        .get(CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.split(';').next())
-        .is_some_and(|v| v.trim().eq_ignore_ascii_case("application/json"))
+    val.set_sensitive(true);
+    Some(val)
 }
 
 impl Inner {
@@ -217,6 +133,15 @@ impl Inner {
     }
 
     fn prepare<P: Event>(&self, params: &P, id: Option<&str>) -> Result<Vec<u8>, ClientError> {
+        let consented = self
+            .events
+            .as_ref()
+            .is_none_or(|events| events.contains(P::METHOD) || P::METHOD.starts_with("client."));
+
+        if !consented {
+            return Err(ClientError::NotConsented { method: P::METHOD });
+        }
+
         let invalid = ClientError::InvalidParams { method: P::METHOD };
 
         let params = serde_json::to_value(params).map_err(|_| invalid)?;
@@ -236,68 +161,42 @@ impl Inner {
         Ok(body)
     }
 
-    async fn post(&self, body: Vec<u8>, deadline: Instant) -> Result<Reply, ClientError> {
-        timeout_at(deadline, self.exchange(body))
-            .await
-            .unwrap_or(Err(ClientError::Deadline))
-    }
+    async fn headers(&self) -> Result<HeaderMap, ClientError> {
+        let mut headers = HeaderMap::new();
 
-    async fn exchange(&self, body: Vec<u8>) -> Result<Reply, ClientError> {
-        let stream = TcpStream::connect(self.endpoint.addr)
-            .await
-            .map_err(ClientError::transport)?;
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
-        let (mut sender, conn) = hyper::client::conn::http1::Builder::new()
-            .max_buf_size(MAX_HEADER_BYTES)
-            .handshake(TokioIo::new(stream))
-            .await
-            .map_err(ClientError::transport)?;
+        match &self.credential {
+            Some(Credential::Fixed(val)) => {
+                headers.insert(AUTHORIZATION, val.clone());
+            }
+            Some(Credential::Dynamic(provider)) => {
+                let val = sensitive(&provider().await).ok_or(ClientError::Authorization)?;
 
-        let mut req = Request::post(&self.endpoint.path)
-            .header(HOST, &self.endpoint.host)
-            .header(CONTENT_TYPE, "application/json")
-            .body(Full::new(Bytes::from(body)))
-            .map_err(ClientError::transport)?;
-
-        if let Some(authorization) = &self.authorization {
-            req.headers_mut()
-                .insert(AUTHORIZATION, authorization.clone());
+                headers.insert(AUTHORIZATION, val);
+            }
+            None => {}
         }
 
-        let work = async move {
-            let res = sender
-                .send_request(req)
+        if let Some(identity) = &self.identity {
+            headers.insert(ACLP_CLIENT, identity.clone());
+        }
+
+        Ok(headers)
+    }
+
+    async fn post(&self, body: Vec<u8>, deadline: Instant) -> Result<Reply, ClientError> {
+        let send = async {
+            let headers = self.headers().await?;
+
+            self.endpoint
+                .exchange(Method::POST, headers, Bytes::from(body))
                 .await
-                .map_err(ClientError::transport)?;
-
-            let status = res.status();
-
-            if status == StatusCode::SWITCHING_PROTOCOLS {
-                return Err(ClientError::Upgrade);
-            }
-
-            if status == StatusCode::OK && !is_json(res.headers()) {
-                return Err(ClientError::ContentType);
-            }
-
-            let body = Limited::new(res.into_body(), MAX_BODY_BYTES)
-                .collect()
-                .await
-                .map_err(|err| {
-                    if err.is::<LengthLimitError>() {
-                        ClientError::ResponseTooLarge
-                    } else {
-                        ClientError::Transport(err)
-                    }
-                })?
-                .to_bytes();
-
-            Ok(Reply { status, body })
         };
 
-        let (res, _) = tokio::join!(work, conn);
-
-        res
+        timeout_at(deadline, send)
+            .await
+            .unwrap_or(Err(ClientError::Deadline))
     }
 
     fn fail(&self, err: ClientError) {
@@ -315,32 +214,47 @@ impl Inner {
 }
 
 impl Client {
-    /// Creates a client for one loopback endpoint.
+    /// Creates a client for one endpoint.
     ///
     /// # Errors
     ///
-    /// Returns [`ConfigError`] for a non-loopback or credential-bearing URL, a zero or overlong
-    /// timeout, or an authorization value that cannot be an HTTP header.
+    /// Returns [`ConfigError`] for a URL that is not `http` or `https`, carries credentials or a
+    /// fragment, or needs TLS without the `tls` feature; a zero or overlong timeout; an
+    /// authorization value or client identity that cannot be an HTTP header; or an unusable CA.
     pub fn new(opts: ClientOptions) -> Result<Self, ConfigError> {
         if opts.timeout.is_zero() || opts.timeout > MAX_TIMEOUT {
             return Err(ConfigError::Timeout);
         }
 
-        let authorization = opts
-            .authorization
-            .map(|v| HeaderValue::from_str(&v).map_err(|_| ConfigError::Authorization))
-            .transpose()?
-            .map(|mut v| {
-                v.set_sensitive(true);
-                v
-            });
+        let credential = match opts.authorization {
+            Some(Authorization::Fixed(val)) => Some(Credential::Fixed(
+                sensitive(&val).ok_or(ConfigError::Authorization)?,
+            )),
+            Some(Authorization::Dynamic(provider)) => Some(Credential::Dynamic(provider)),
+            None => None,
+        };
+
+        let identity = opts
+            .client
+            .map(|client| {
+                let valid =
+                    serde_json::to_value(&client).is_ok_and(|v| validation::is_client_info(&v));
+
+                valid
+                    .then(|| HeaderValue::from_str(&client_header(&client)).ok())
+                    .flatten()
+                    .ok_or(ConfigError::Identity)
+            })
+            .transpose()?;
 
         validation::warm();
 
         Ok(Client {
             inner: Arc::new(Inner {
-                endpoint: endpoint(&opts.url)?,
-                authorization,
+                endpoint: Endpoint::parse(&opts.url, opts.ca.as_deref())?,
+                credential,
+                identity,
+                events: opts.events,
                 timeout: opts.timeout,
                 on_error: opts.on_error,
                 state: Mutex::new(State::default()),
@@ -374,6 +288,10 @@ impl Client {
 
         if reply.status != StatusCode::OK {
             return Err(ClientError::Status(reply.status.as_u16()));
+        }
+
+        if !reply.json {
+            return Err(ClientError::ContentType);
         }
 
         let mut msg = json::decode(&reply.body).map_err(|_| ClientError::InvalidResponse)?;
@@ -410,8 +328,8 @@ impl Client {
     ///
     /// # Errors
     ///
-    /// Returns [`ClientError::Capacity`], [`ClientError::InvalidParams`] or
-    /// [`ClientError::TooLarge`] before anything is sent.
+    /// Returns [`ClientError::Capacity`], [`ClientError::NotConsented`],
+    /// [`ClientError::InvalidParams`] or [`ClientError::TooLarge`] before anything is sent.
     ///
     /// # Panics
     ///

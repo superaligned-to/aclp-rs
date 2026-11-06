@@ -13,6 +13,8 @@ const MAX_ID_BYTES: usize = 128;
 struct Validators {
     envelope: Validator,
     response: Validator,
+    discovery: Validator,
+    client: Validator,
     params: HashMap<&'static str, Validator>,
 }
 
@@ -40,6 +42,8 @@ static VALIDATORS: LazyLock<Validators> = LazyLock::new(|| {
         response: compile(json!([{
             "oneOf": [reference("SuccessResponse"), reference("ErrorResponse")],
         }])),
+        discovery: compile(json!([reference("DiscoveryDocument")])),
+        client: compile(json!([reference("ClientInfo")])),
         params: DEFINITIONS
             .iter()
             .map(|(method, def)| (*method, compile(json!([reference(def)]))))
@@ -93,6 +97,38 @@ pub(crate) fn is_notification(val: &Value) -> bool {
             .and_then(Value::as_str)
             .is_some_and(|m| !m.is_empty())
         && val.get("id").is_none()
+}
+
+fn http_endpoint(url: &str) -> bool {
+    url.parse::<hyper::Uri>().is_ok_and(|uri| {
+        matches!(uri.scheme_str(), Some("http" | "https"))
+            && uri
+                .authority()
+                .is_some_and(|a| !a.as_str().contains('@') && !a.host().is_empty())
+            && !url.contains('#')
+    })
+}
+
+/// Checks a discovery document's schema, its endpoint URL and that `requests` is a subset of `events`.
+pub(crate) fn is_discovery_document(val: &Value) -> bool {
+    let methods = |key: &str| -> Vec<&str> {
+        val[key]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .collect()
+    };
+
+    let events = methods("events");
+
+    VALIDATORS.discovery.is_valid(val)
+        && val["endpoint"].as_str().is_some_and(http_endpoint)
+        && methods("requests").iter().all(|m| events.contains(m))
+}
+
+pub(crate) fn is_client_info(val: &Value) -> bool {
+    VALIDATORS.client.is_valid(val)
 }
 
 #[cfg(test)]
