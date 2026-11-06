@@ -1,0 +1,34 @@
+[package]
+name = "aclp"
+version = "0.1.0"
+description = "Rust client and server for ACLP lifecycle callbacks."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+keywords = ["aclp", "agent", "json-rpc", "lifecycle", "hooks"]
+categories = ["network-programming", "api-bindings"]
+exclude = ["tests/interop", "tests/interop.rs"]
+
+[dependencies]
+http-body-util = "0.1.5"
+hyper = { version = "1.12.0", features = ["http1", "server", "client"] }
+hyper-util = { version = "0.1.21", features = ["tokio"] }
+jsonschema = { version = "0.60.2", default-features = false }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["float_roundtrip", "preserve_order"] }
+sha2 = "0.11.1"
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["net", "rt", "time", "sync", "macros"] }
+tokio-util = { version = "0.7.20", features = ["rt"] }
+tracing = "0.1.44"
+uuid = { version = "1.29.0", features = ["v4"] }
+
+[dev-dependencies]
+base64 = "0.23.1"
+proptest = { version = "1", default-features = false, features = ["std"] }
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "time", "io-util", "process"] }
+
+[lints]
+workspace = true

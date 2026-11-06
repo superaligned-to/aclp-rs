@@ -1,0 +1,3488 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:aclp:callbacks:v1",
+  "title": "ACLP callback profile v1: standard messages",
+  "description": "Proposed profile. Validate the generic envelope before resolving a method. StandardInvocation binds the complete standard method catalog to its parameter schemas; custom installed methods validate against their installed schemas. Success result values are narrowed by each installed integration. Semantic checks remain documented separately.",
+  "oneOf": [
+    {
+      "$ref": "#/definitions/StandardInvocation"
+    },
+    {
+      "$ref": "#/definitions/SuccessResponse"
+    },
+    {
+      "$ref": "#/definitions/ErrorResponse"
+    }
+  ],
+  "definitions": {
+    "Id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "Text": {
+      "type": "string"
+    },
+    "NonemptyText": {
+      "type": "string",
+      "minLength": 1
+    },
+    "Uri": {
+      "type": "string",
+      "format": "uri",
+      "minLength": 1,
+      "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:[^\\s]*$"
+    },
+    "RequestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "$comment": "Also enforce the 128 UTF-8 byte limit before dispatch."
+    },
+    "JsonValue": {},
+    "MimeType": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+(?:;[^\\r\\n]+)?$"
+    },
+    "Base64": {
+      "type": "string",
+      "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+      "contentEncoding": "base64",
+      "$comment": "Also decode and require canonical re-encoding to check padding bits."
+    },
+    "Schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$id": "urn:aclp:callbacks:draft-07-meta",
+      "title": "Core schema meta-schema",
+      "definitions": {
+        "schemaArray": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#"
+          }
+        },
+        "nonNegativeInteger": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "nonNegativeIntegerDefault0": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/nonNegativeInteger"
+            },
+            {
+              "default": 0
+            }
+          ]
+        },
+        "simpleTypes": {
+          "enum": [
+            "array",
+            "boolean",
+            "integer",
+            "null",
+            "number",
+            "object",
+            "string"
+          ]
+        },
+        "stringArray": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "default": []
+        }
+      },
+      "type": [
+        "object",
+        "boolean"
+      ],
+      "properties": {
+        "$id": {
+          "type": "string",
+          "format": "uri-reference"
+        },
+        "$schema": {
+          "enum": [
+            "http://json-schema.org/draft-07/schema#",
+            "http://json-schema.org/draft-07/schema",
+            "https://json-schema.org/draft-07/schema#",
+            "https://json-schema.org/draft-07/schema"
+          ]
+        },
+        "$ref": {
+          "type": "string",
+          "format": "uri-reference"
+        },
+        "$comment": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "default": true,
+        "readOnly": {
+          "type": "boolean",
+          "default": false
+        },
+        "examples": {
+          "type": "array",
+          "items": true
+        },
+        "multipleOf": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "maximum": {
+          "type": "number"
+        },
+        "exclusiveMaximum": {
+          "type": "number"
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "exclusiveMinimum": {
+          "type": "number"
+        },
+        "maxLength": {
+          "$ref": "#/definitions/nonNegativeInteger"
+        },
+        "minLength": {
+          "$ref": "#/definitions/nonNegativeIntegerDefault0"
+        },
+        "pattern": {
+          "type": "string",
+          "format": "regex"
+        },
+        "additionalItems": {
+          "$ref": "#"
+        },
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#"
+            },
+            {
+              "$ref": "#/definitions/schemaArray"
+            }
+          ],
+          "default": true
+        },
+        "maxItems": {
+          "$ref": "#/definitions/nonNegativeInteger"
+        },
+        "minItems": {
+          "$ref": "#/definitions/nonNegativeIntegerDefault0"
+        },
+        "uniqueItems": {
+          "type": "boolean",
+          "default": false
+        },
+        "contains": {
+          "$ref": "#"
+        },
+        "maxProperties": {
+          "$ref": "#/definitions/nonNegativeInteger"
+        },
+        "minProperties": {
+          "$ref": "#/definitions/nonNegativeIntegerDefault0"
+        },
+        "required": {
+          "$ref": "#/definitions/stringArray"
+        },
+        "additionalProperties": {
+          "$ref": "#"
+        },
+        "definitions": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#"
+          },
+          "default": {}
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#"
+          },
+          "default": {}
+        },
+        "patternProperties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#"
+          },
+          "propertyNames": {
+            "format": "regex"
+          },
+          "default": {}
+        },
+        "dependencies": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#"
+              },
+              {
+                "$ref": "#/definitions/stringArray"
+              }
+            ]
+          }
+        },
+        "propertyNames": {
+          "$ref": "#"
+        },
+        "const": true,
+        "enum": {
+          "type": "array",
+          "items": true
+        },
+        "type": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/simpleTypes"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/simpleTypes"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          ]
+        },
+        "format": {
+          "type": "string"
+        },
+        "contentMediaType": {
+          "type": "string"
+        },
+        "contentEncoding": {
+          "type": "string"
+        },
+        "if": {
+          "$ref": "#"
+        },
+        "then": {
+          "$ref": "#"
+        },
+        "else": {
+          "$ref": "#"
+        },
+        "allOf": {
+          "$ref": "#/definitions/schemaArray"
+        },
+        "anyOf": {
+          "$ref": "#/definitions/schemaArray"
+        },
+        "oneOf": {
+          "$ref": "#/definitions/schemaArray"
+        },
+        "not": {
+          "$ref": "#"
+        }
+      },
+      "default": true
+    },
+    "TextContent": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "text"
+        },
+        "text": {
+          "$ref": "#/definitions/Text"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "ImageContent": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "image"
+        },
+        "data": {
+          "$ref": "#/definitions/Base64"
+        },
+        "mimeType": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/MimeType"
+            },
+            {
+              "pattern": "^image/"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "mimeType"
+      ],
+      "additionalProperties": false
+    },
+    "AudioContent": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "audio"
+        },
+        "data": {
+          "$ref": "#/definitions/Base64"
+        },
+        "mimeType": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/MimeType"
+            },
+            {
+              "pattern": "^audio/"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "mimeType"
+      ],
+      "additionalProperties": false
+    },
+    "ResourceLinkContent": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "resource_link"
+        },
+        "uri": {
+          "$ref": "#/definitions/Uri"
+        },
+        "name": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "mimeType": {
+          "$ref": "#/definitions/MimeType"
+        }
+      },
+      "required": [
+        "type",
+        "uri",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "EmbeddedResource": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "uri": {
+              "$ref": "#/definitions/Uri"
+            },
+            "mimeType": {
+              "$ref": "#/definitions/MimeType"
+            },
+            "text": {
+              "$ref": "#/definitions/Text"
+            }
+          },
+          "required": [
+            "uri",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "uri": {
+              "$ref": "#/definitions/Uri"
+            },
+            "mimeType": {
+              "$ref": "#/definitions/MimeType"
+            },
+            "blob": {
+              "$ref": "#/definitions/Base64"
+            }
+          },
+          "required": [
+            "uri",
+            "blob"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ResourceContent": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "resource"
+        },
+        "resource": {
+          "$ref": "#/definitions/EmbeddedResource"
+        }
+      },
+      "required": [
+        "type",
+        "resource"
+      ],
+      "additionalProperties": false
+    },
+    "ContentBlock": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/TextContent"
+        },
+        {
+          "$ref": "#/definitions/ImageContent"
+        },
+        {
+          "$ref": "#/definitions/AudioContent"
+        },
+        {
+          "$ref": "#/definitions/ResourceLinkContent"
+        },
+        {
+          "$ref": "#/definitions/ResourceContent"
+        }
+      ]
+    },
+    "Payload": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ContentBlock"
+          }
+        },
+        "structuredContent": {
+          "$ref": "#/definitions/JsonValue"
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "additionalProperties": false
+    },
+    "InputPayload": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ContentBlock"
+          }
+        },
+        "structuredContent": {
+          "$ref": "#/definitions/JsonValue"
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "properties": {
+            "content": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "required": [
+            "structuredContent"
+          ]
+        }
+      ]
+    },
+    "Failure": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "code": {
+          "$ref": "#/definitions/NonemptyText"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "Completion": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "succeeded"
+            },
+            "output": {
+              "$ref": "#/definitions/Payload"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "failed"
+            },
+            "error": {
+              "$ref": "#/definitions/Failure"
+            },
+            "output": {
+              "$ref": "#/definitions/Payload"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "cancelled"
+            },
+            "reason": {
+              "$ref": "#/definitions/Text"
+            },
+            "output": {
+              "$ref": "#/definitions/Payload"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "RunCompletion": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "succeeded"
+            },
+            "output": {
+              "$ref": "#/definitions/Payload"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "failed"
+            },
+            "error": {
+              "$ref": "#/definitions/Failure"
+            },
+            "output": {
+              "$ref": "#/definitions/Payload"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "cancelled"
+            },
+            "reason": {
+              "$ref": "#/definitions/Text"
+            },
+            "output": {
+              "$ref": "#/definitions/Payload"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "interrupted"
+            },
+            "reason": {
+              "$ref": "#/definitions/NonemptyText"
+            },
+            "output": {
+              "$ref": "#/definitions/Payload"
+            }
+          },
+          "required": [
+            "status",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ToolCompletion": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "succeeded"
+            },
+            "output": {
+              "$ref": "#/definitions/Payload"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "failed"
+            },
+            "error": {
+              "$ref": "#/definitions/Failure"
+            },
+            "output": {
+              "$ref": "#/definitions/Payload"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "cancelled"
+            },
+            "reason": {
+              "$ref": "#/definitions/Text"
+            },
+            "output": {
+              "$ref": "#/definitions/Payload"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "denied"
+            },
+            "reason": {
+              "$ref": "#/definitions/Text"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "unknown"
+            },
+            "reason": {
+              "$ref": "#/definitions/Text"
+            },
+            "output": {
+              "$ref": "#/definitions/Payload"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ObservedToolCall": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "name": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "arguments": {
+          "$ref": "#/definitions/JsonValue"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "ProposedToolCall": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "name": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "arguments": {
+          "$ref": "#/definitions/JsonValue"
+        }
+      },
+      "required": [
+        "name",
+        "arguments"
+      ],
+      "additionalProperties": false
+    },
+    "ModelOutput": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ContentBlock"
+          }
+        },
+        "structuredContent": {
+          "$ref": "#/definitions/JsonValue"
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ProposedToolCall"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "additionalProperties": false
+    },
+    "ModelCompletion": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "succeeded"
+            },
+            "output": {
+              "$ref": "#/definitions/ModelOutput"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "failed"
+            },
+            "error": {
+              "$ref": "#/definitions/Failure"
+            },
+            "output": {
+              "$ref": "#/definitions/ModelOutput"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "cancelled"
+            },
+            "reason": {
+              "$ref": "#/definitions/Text"
+            },
+            "output": {
+              "$ref": "#/definitions/ModelOutput"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ToolDefinition": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "description": {
+          "$ref": "#/definitions/Text"
+        },
+        "inputSchema": {
+          "$ref": "#/definitions/Schema"
+        },
+        "outputSchema": {
+          "$ref": "#/definitions/Schema"
+        }
+      },
+      "required": [
+        "name",
+        "inputSchema"
+      ],
+      "additionalProperties": false
+    },
+    "SkillDefinition": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "description": {
+          "$ref": "#/definitions/Text"
+        },
+        "uri": {
+          "$ref": "#/definitions/Uri"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "Source": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "skill",
+            "instructions",
+            "memory",
+            "resource"
+          ]
+        },
+        "name": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "uri": {
+          "$ref": "#/definitions/Uri"
+        }
+      },
+      "required": [
+        "kind",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "name": {
+          "$ref": "#/definitions/NonemptyText"
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        }
+      ]
+    },
+    "ModelRef": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "provider": {
+          "$ref": "#/definitions/NonemptyText"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "ModelMessage": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "enum": [
+            "system",
+            "developer",
+            "user",
+            "assistant",
+            "tool"
+          ]
+        },
+        "content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ContentBlock"
+          }
+        },
+        "structuredContent": {
+          "$ref": "#/definitions/JsonValue"
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ProposedToolCall"
+          },
+          "minItems": 1
+        },
+        "callId": {
+          "$ref": "#/definitions/Id"
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ],
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "properties": {
+            "content": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "required": [
+            "structuredContent"
+          ]
+        },
+        {
+          "required": [
+            "calls"
+          ]
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "role": {
+                "const": "assistant"
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "required": [
+                "calls"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "role": {
+                "const": "tool"
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "required": [
+                "callId"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "ModelInput": {
+      "type": "object",
+      "properties": {
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ModelMessage"
+          },
+          "minItems": 1
+        },
+        "view": {
+          "enum": [
+            "complete",
+            "partial"
+          ]
+        }
+      },
+      "required": [
+        "messages",
+        "view"
+      ],
+      "additionalProperties": false
+    },
+    "Usage": {
+      "type": "object",
+      "properties": {
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cachedInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "Operation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "tool"
+            },
+            "call": {
+              "$ref": "#/definitions/ProposedToolCall"
+            }
+          },
+          "required": [
+            "kind",
+            "call"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "resource"
+            },
+            "uri": {
+              "$ref": "#/definitions/Uri"
+            },
+            "access": {
+              "enum": [
+                "read",
+                "write",
+                "execute"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "uri",
+            "access"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "network"
+            },
+            "origin": {
+              "$ref": "#/definitions/Uri"
+            }
+          },
+          "required": [
+            "kind",
+            "origin"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "capability"
+            },
+            "name": {
+              "$ref": "#/definitions/NonemptyText"
+            }
+          },
+          "required": [
+            "kind",
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "PermissionOption": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "label": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "decision": {
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        },
+        "scope": {
+          "enum": [
+            "once",
+            "session",
+            "persistent"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "decision"
+      ],
+      "additionalProperties": false
+    },
+    "Interaction": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "question"
+            },
+            "message": {
+              "$ref": "#/definitions/NonemptyText"
+            }
+          },
+          "required": [
+            "kind",
+            "message"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "form"
+            },
+            "message": {
+              "$ref": "#/definitions/NonemptyText"
+            },
+            "schema": {
+              "$ref": "#/definitions/Schema"
+            }
+          },
+          "required": [
+            "kind",
+            "message",
+            "schema"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "url"
+            },
+            "message": {
+              "$ref": "#/definitions/NonemptyText"
+            },
+            "url": {
+              "$ref": "#/definitions/Uri"
+            }
+          },
+          "required": [
+            "kind",
+            "message",
+            "url"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Answer": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "accepted"
+            },
+            "value": {
+              "$ref": "#/definitions/JsonValue"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "declined"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "cancelled"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "UrlAnswer": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "accepted"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "declined"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "cancelled"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Message": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ContentBlock"
+          }
+        },
+        "structuredContent": {
+          "$ref": "#/definitions/JsonValue"
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "properties": {
+            "content": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "required": [
+            "structuredContent"
+          ]
+        }
+      ]
+    },
+    "ToolFinishedItem": {
+      "type": "object",
+      "properties": {
+        "call": {
+          "$ref": "#/definitions/ObservedToolCall"
+        },
+        "outcome": {
+          "$ref": "#/definitions/ToolCompletion"
+        }
+      },
+      "required": [
+        "call",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "PlanStep": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "title": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "in_progress",
+            "completed",
+            "cancelled"
+          ]
+        }
+      },
+      "required": [
+        "title",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "TaskSnapshot": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "title": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "detail": {
+          "$ref": "#/definitions/Text"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "running",
+            "blocked"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "TaskRef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "title": {
+          "$ref": "#/definitions/NonemptyText"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "ResourceRef": {
+      "type": "object",
+      "properties": {
+        "uri": {
+          "$ref": "#/definitions/Uri"
+        },
+        "name": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "mimeType": {
+          "$ref": "#/definitions/MimeType"
+        }
+      },
+      "required": [
+        "uri"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceRef": {
+      "type": "object",
+      "properties": {
+        "uri": {
+          "$ref": "#/definitions/Uri"
+        },
+        "name": {
+          "$ref": "#/definitions/NonemptyText"
+        }
+      },
+      "required": [
+        "uri"
+      ],
+      "additionalProperties": false
+    },
+    "SettingChange": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "value": {
+          "$ref": "#/definitions/JsonValue"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "additionalProperties": false
+    },
+    "SessionStartedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "reason": {
+          "$ref": "#/definitions/Text"
+        },
+        "parentSessionId": {
+          "$ref": "#/definitions/Id"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "SessionEndedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "reason": {
+          "$ref": "#/definitions/Text"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "InputSubmittedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ContentBlock"
+          }
+        },
+        "structuredContent": {
+          "$ref": "#/definitions/JsonValue"
+        }
+      },
+      "required": [
+        "sessionId",
+        "content"
+      ],
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "properties": {
+            "content": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "required": [
+            "structuredContent"
+          ]
+        }
+      ]
+    },
+    "RunStartedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "input": {
+          "$ref": "#/definitions/InputPayload"
+        },
+        "resumesRunId": {
+          "$ref": "#/definitions/Id"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "RunFinishingParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "output": {
+          "$ref": "#/definitions/Payload"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "RunFinishedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "outcome": {
+          "$ref": "#/definitions/RunCompletion"
+        }
+      },
+      "required": [
+        "sessionId",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "ToolRequestedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "call": {
+          "$ref": "#/definitions/ProposedToolCall"
+        }
+      },
+      "required": [
+        "sessionId",
+        "call"
+      ],
+      "additionalProperties": false
+    },
+    "ToolStartedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "call": {
+          "$ref": "#/definitions/ObservedToolCall"
+        }
+      },
+      "required": [
+        "sessionId",
+        "call"
+      ],
+      "additionalProperties": false
+    },
+    "ToolFinishedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "call": {
+          "$ref": "#/definitions/ObservedToolCall"
+        },
+        "outcome": {
+          "$ref": "#/definitions/ToolCompletion"
+        }
+      },
+      "required": [
+        "sessionId",
+        "call",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "ContextCompactionRequestedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "reason": {
+          "$ref": "#/definitions/Text"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "ContextCompactionFinishedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "outcome": {
+          "$ref": "#/definitions/Completion"
+        }
+      },
+      "required": [
+        "sessionId",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "ContextSourceLoadedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "source": {
+          "$ref": "#/definitions/Source"
+        },
+        "payload": {
+          "$ref": "#/definitions/Payload"
+        }
+      },
+      "required": [
+        "sessionId",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "CatalogChangedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "catalog": {
+          "enum": [
+            "tools",
+            "skills"
+          ]
+        },
+        "entries": {
+          "type": "array"
+        }
+      },
+      "required": [
+        "catalog",
+        "entries"
+      ],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "catalog": {
+              "const": "tools"
+            },
+            "entries": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/ToolDefinition"
+              },
+              "uniqueItems": true
+            }
+          }
+        },
+        {
+          "properties": {
+            "catalog": {
+              "const": "skills"
+            },
+            "entries": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/SkillDefinition"
+              },
+              "uniqueItems": true
+            }
+          }
+        }
+      ],
+      "dependencies": {
+        "runId": [
+          "sessionId"
+        ],
+        "agentId": [
+          "sessionId"
+        ]
+      }
+    },
+    "ModelRequestedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "model": {
+          "$ref": "#/definitions/ModelRef"
+        },
+        "input": {
+          "$ref": "#/definitions/ModelInput"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ToolDefinition"
+          },
+          "uniqueItems": true
+        },
+        "modelCallId": {
+          "$ref": "#/definitions/Id"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "ModelFinishedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "model": {
+          "$ref": "#/definitions/ModelRef"
+        },
+        "modelCallId": {
+          "$ref": "#/definitions/Id"
+        },
+        "outcome": {
+          "$ref": "#/definitions/ModelCompletion"
+        },
+        "usage": {
+          "$ref": "#/definitions/Usage"
+        }
+      },
+      "required": [
+        "sessionId",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "PermissionRequestedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "requestId": {
+          "$ref": "#/definitions/Id"
+        },
+        "operation": {
+          "$ref": "#/definitions/Operation"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PermissionOption"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "sessionId",
+        "operation",
+        "options"
+      ],
+      "additionalProperties": false
+    },
+    "PermissionResolvedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "requestId": {
+          "$ref": "#/definitions/Id"
+        },
+        "operation": {
+          "$ref": "#/definitions/Operation"
+        },
+        "decision": {
+          "enum": [
+            "allowed",
+            "denied",
+            "cancelled"
+          ]
+        },
+        "optionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "reason": {
+          "$ref": "#/definitions/Text"
+        }
+      },
+      "required": [
+        "sessionId",
+        "operation",
+        "decision"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "decision": {
+                "const": "cancelled"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "optionId"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "InteractionRequestedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "requestId": {
+          "$ref": "#/definitions/Id"
+        },
+        "interaction": {
+          "$ref": "#/definitions/Interaction"
+        }
+      },
+      "required": [
+        "sessionId",
+        "interaction"
+      ],
+      "additionalProperties": false
+    },
+    "InteractionResolvedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "requestId": {
+          "$ref": "#/definitions/Id"
+        },
+        "interaction": {
+          "$ref": "#/definitions/Interaction"
+        },
+        "response": {}
+      },
+      "required": [
+        "sessionId",
+        "interaction",
+        "response"
+      ],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "interaction": {
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "question",
+                    "form"
+                  ]
+                }
+              }
+            },
+            "response": {
+              "$ref": "#/definitions/Answer"
+            }
+          }
+        },
+        {
+          "properties": {
+            "interaction": {
+              "properties": {
+                "kind": {
+                  "const": "url"
+                }
+              }
+            },
+            "response": {
+              "$ref": "#/definitions/UrlAnswer"
+            }
+          }
+        }
+      ]
+    },
+    "AgentRequestedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agent": {
+          "$ref": "#/definitions/AgentRef"
+        },
+        "childRunId": {
+          "$ref": "#/definitions/Id"
+        },
+        "input": {
+          "$ref": "#/definitions/InputPayload"
+        }
+      },
+      "required": [
+        "sessionId",
+        "agent",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "AgentStartedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agent": {
+          "$ref": "#/definitions/AgentRef"
+        },
+        "childRunId": {
+          "$ref": "#/definitions/Id"
+        },
+        "input": {
+          "$ref": "#/definitions/InputPayload"
+        }
+      },
+      "required": [
+        "sessionId",
+        "agent"
+      ],
+      "additionalProperties": false
+    },
+    "AgentFinishedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agent": {
+          "$ref": "#/definitions/AgentRef"
+        },
+        "childRunId": {
+          "$ref": "#/definitions/Id"
+        },
+        "outcome": {
+          "$ref": "#/definitions/RunCompletion"
+        }
+      },
+      "required": [
+        "sessionId",
+        "agent",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "HandoffRequestedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "from": {
+          "$ref": "#/definitions/AgentRef"
+        },
+        "to": {
+          "$ref": "#/definitions/AgentRef"
+        },
+        "input": {
+          "$ref": "#/definitions/InputPayload"
+        }
+      },
+      "required": [
+        "sessionId",
+        "from",
+        "to"
+      ],
+      "additionalProperties": false
+    },
+    "HandoffFinishedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "from": {
+          "$ref": "#/definitions/AgentRef"
+        },
+        "to": {
+          "$ref": "#/definitions/AgentRef"
+        },
+        "outcome": {
+          "$ref": "#/definitions/Completion"
+        }
+      },
+      "required": [
+        "sessionId",
+        "from",
+        "to",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "MessageEmittingParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "message": {
+          "$ref": "#/definitions/Message"
+        },
+        "recipient": {
+          "$ref": "#/definitions/AgentRef"
+        }
+      },
+      "required": [
+        "sessionId",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "MessageEmittedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "message": {
+          "$ref": "#/definitions/Message"
+        },
+        "recipient": {
+          "$ref": "#/definitions/AgentRef"
+        }
+      },
+      "required": [
+        "sessionId",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "RunCancellationRequestedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "reason": {
+          "$ref": "#/definitions/Text"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "RunPausedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "reason": {
+          "$ref": "#/definitions/Text"
+        },
+        "interactionId": {
+          "$ref": "#/definitions/Id"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "RunResumedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "reason": {
+          "$ref": "#/definitions/Text"
+        },
+        "interactionId": {
+          "$ref": "#/definitions/Id"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "ToolBatchFinishedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "batchId": {
+          "$ref": "#/definitions/Id"
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ToolFinishedItem"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "sessionId",
+        "calls"
+      ],
+      "additionalProperties": false
+    },
+    "PlanUpdatedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PlanStep"
+          }
+        }
+      },
+      "required": [
+        "sessionId",
+        "steps"
+      ],
+      "additionalProperties": false
+    },
+    "TaskCreatedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "task": {
+          "$ref": "#/definitions/TaskSnapshot"
+        }
+      },
+      "required": [
+        "sessionId",
+        "task"
+      ],
+      "additionalProperties": false
+    },
+    "TaskUpdatedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "task": {
+          "$ref": "#/definitions/TaskSnapshot"
+        }
+      },
+      "required": [
+        "sessionId",
+        "task"
+      ],
+      "additionalProperties": false
+    },
+    "TaskFinishedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "task": {
+          "$ref": "#/definitions/TaskRef"
+        },
+        "outcome": {
+          "$ref": "#/definitions/Completion"
+        }
+      },
+      "required": [
+        "sessionId",
+        "task",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceChangedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "workspace": {
+          "$ref": "#/definitions/WorkspaceRef"
+        },
+        "change": {
+          "enum": [
+            "opened",
+            "closed",
+            "updated"
+          ]
+        }
+      },
+      "required": [
+        "workspace",
+        "change"
+      ],
+      "additionalProperties": false,
+      "dependencies": {
+        "runId": [
+          "sessionId"
+        ],
+        "agentId": [
+          "sessionId"
+        ]
+      }
+    },
+    "ResourceChangedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "resource": {
+          "$ref": "#/definitions/ResourceRef"
+        },
+        "change": {
+          "enum": [
+            "created",
+            "modified",
+            "deleted",
+            "renamed"
+          ]
+        },
+        "previousUri": {
+          "$ref": "#/definitions/Uri"
+        }
+      },
+      "required": [
+        "resource",
+        "change"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "change": {
+                "const": "renamed"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "previousUri"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "previousUri"
+              ]
+            }
+          }
+        }
+      ],
+      "dependencies": {
+        "runId": [
+          "sessionId"
+        ],
+        "agentId": [
+          "sessionId"
+        ]
+      }
+    },
+    "ConfigurationChangedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SettingChange"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "changes"
+      ],
+      "additionalProperties": false,
+      "dependencies": {
+        "runId": [
+          "sessionId"
+        ],
+        "agentId": [
+          "sessionId"
+        ]
+      }
+    },
+    "ModelChangedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "model": {
+          "$ref": "#/definitions/ModelRef"
+        },
+        "previousModel": {
+          "$ref": "#/definitions/ModelRef"
+        }
+      },
+      "required": [
+        "model"
+      ],
+      "additionalProperties": false,
+      "dependencies": {
+        "runId": [
+          "sessionId"
+        ],
+        "agentId": [
+          "sessionId"
+        ]
+      }
+    },
+    "NotificationCreatedParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "level": {
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ]
+        },
+        "message": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "code": {
+          "$ref": "#/definitions/NonemptyText"
+        }
+      },
+      "required": [
+        "level",
+        "message"
+      ],
+      "additionalProperties": false,
+      "dependencies": {
+        "runId": [
+          "sessionId"
+        ],
+        "agentId": [
+          "sessionId"
+        ]
+      }
+    },
+    "ErrorOccurredParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/definitions/Id"
+        },
+        "runId": {
+          "$ref": "#/definitions/Id"
+        },
+        "agentId": {
+          "$ref": "#/definitions/Id"
+        },
+        "error": {
+          "$ref": "#/definitions/Failure"
+        },
+        "operation": {
+          "$ref": "#/definitions/Operation"
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "additionalProperties": false,
+      "dependencies": {
+        "runId": [
+          "sessionId"
+        ],
+        "agentId": [
+          "sessionId"
+        ]
+      }
+    },
+    "RequestEnvelope": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "^rpc\\."
+          }
+        },
+        "params": {
+          "type": "object"
+        },
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "method",
+        "params",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "NotificationEnvelope": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "^rpc\\."
+          }
+        },
+        "params": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "method",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    "InvocationEnvelope": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/RequestEnvelope"
+        },
+        {
+          "$ref": "#/definitions/NotificationEnvelope"
+        }
+      ]
+    },
+    "StandardInvocation": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/InvocationEnvelope"
+        },
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "method": {
+                  "const": "session.started"
+                },
+                "params": {
+                  "$ref": "#/definitions/SessionStartedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "session.ended"
+                },
+                "params": {
+                  "$ref": "#/definitions/SessionEndedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "input.submitted"
+                },
+                "params": {
+                  "$ref": "#/definitions/InputSubmittedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "run.started"
+                },
+                "params": {
+                  "$ref": "#/definitions/RunStartedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "run.finishing"
+                },
+                "params": {
+                  "$ref": "#/definitions/RunFinishingParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "run.finished"
+                },
+                "params": {
+                  "$ref": "#/definitions/RunFinishedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "tool.requested"
+                },
+                "params": {
+                  "$ref": "#/definitions/ToolRequestedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "tool.started"
+                },
+                "params": {
+                  "$ref": "#/definitions/ToolStartedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "tool.finished"
+                },
+                "params": {
+                  "$ref": "#/definitions/ToolFinishedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "context.compaction.requested"
+                },
+                "params": {
+                  "$ref": "#/definitions/ContextCompactionRequestedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "context.compaction.finished"
+                },
+                "params": {
+                  "$ref": "#/definitions/ContextCompactionFinishedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "context.source.loaded"
+                },
+                "params": {
+                  "$ref": "#/definitions/ContextSourceLoadedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "catalog.changed"
+                },
+                "params": {
+                  "$ref": "#/definitions/CatalogChangedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "model.requested"
+                },
+                "params": {
+                  "$ref": "#/definitions/ModelRequestedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "model.finished"
+                },
+                "params": {
+                  "$ref": "#/definitions/ModelFinishedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "permission.requested"
+                },
+                "params": {
+                  "$ref": "#/definitions/PermissionRequestedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "permission.resolved"
+                },
+                "params": {
+                  "$ref": "#/definitions/PermissionResolvedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "interaction.requested"
+                },
+                "params": {
+                  "$ref": "#/definitions/InteractionRequestedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "interaction.resolved"
+                },
+                "params": {
+                  "$ref": "#/definitions/InteractionResolvedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "agent.requested"
+                },
+                "params": {
+                  "$ref": "#/definitions/AgentRequestedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "agent.started"
+                },
+                "params": {
+                  "$ref": "#/definitions/AgentStartedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "agent.finished"
+                },
+                "params": {
+                  "$ref": "#/definitions/AgentFinishedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "handoff.requested"
+                },
+                "params": {
+                  "$ref": "#/definitions/HandoffRequestedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "handoff.finished"
+                },
+                "params": {
+                  "$ref": "#/definitions/HandoffFinishedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "message.emitting"
+                },
+                "params": {
+                  "$ref": "#/definitions/MessageEmittingParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "message.emitted"
+                },
+                "params": {
+                  "$ref": "#/definitions/MessageEmittedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "run.cancellation.requested"
+                },
+                "params": {
+                  "$ref": "#/definitions/RunCancellationRequestedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "run.paused"
+                },
+                "params": {
+                  "$ref": "#/definitions/RunPausedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "run.resumed"
+                },
+                "params": {
+                  "$ref": "#/definitions/RunResumedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "tool.batch.finished"
+                },
+                "params": {
+                  "$ref": "#/definitions/ToolBatchFinishedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "plan.updated"
+                },
+                "params": {
+                  "$ref": "#/definitions/PlanUpdatedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "task.created"
+                },
+                "params": {
+                  "$ref": "#/definitions/TaskCreatedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "task.updated"
+                },
+                "params": {
+                  "$ref": "#/definitions/TaskUpdatedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "task.finished"
+                },
+                "params": {
+                  "$ref": "#/definitions/TaskFinishedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "workspace.changed"
+                },
+                "params": {
+                  "$ref": "#/definitions/WorkspaceChangedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "resource.changed"
+                },
+                "params": {
+                  "$ref": "#/definitions/ResourceChangedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "configuration.changed"
+                },
+                "params": {
+                  "$ref": "#/definitions/ConfigurationChangedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "model.changed"
+                },
+                "params": {
+                  "$ref": "#/definitions/ModelChangedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "notification.created"
+                },
+                "params": {
+                  "$ref": "#/definitions/NotificationCreatedParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            },
+            {
+              "properties": {
+                "method": {
+                  "const": "error.occurred"
+                },
+                "params": {
+                  "$ref": "#/definitions/ErrorOccurredParams"
+                }
+              },
+              "required": [
+                "method",
+                "params"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "SuccessResponse": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "result": {
+          "$ref": "#/definitions/JsonValue"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    "RpcError": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer"
+        },
+        "message": {
+          "$ref": "#/definitions/NonemptyText"
+        },
+        "data": {
+          "$ref": "#/definitions/JsonValue"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/RequestId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error": {
+          "$ref": "#/definitions/RpcError"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "error"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "id": {
+                "type": "null"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "error": {
+                "properties": {
+                  "code": {
+                    "enum": [
+                      -32700,
+                      -32600
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "error": {
+                "properties": {
+                  "code": {
+                    "const": -32700
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "id": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

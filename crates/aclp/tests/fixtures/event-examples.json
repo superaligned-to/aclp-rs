@@ -1,0 +1,549 @@
+[
+  [
+    "session.started",
+    {
+      "sessionId": "session-1",
+      "reason": "new"
+    }
+  ],
+  [
+    "session.ended",
+    {
+      "sessionId": "session-1",
+      "reason": "closed"
+    }
+  ],
+  [
+    "input.submitted",
+    {
+      "sessionId": "session-1",
+      "content": [
+        {
+          "type": "text",
+          "text": "Example text."
+        }
+      ]
+    }
+  ],
+  [
+    "run.started",
+    {
+      "sessionId": "session-1",
+      "runId": "run-1",
+      "input": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Example text."
+          }
+        ]
+      }
+    }
+  ],
+  [
+    "run.finishing",
+    {
+      "sessionId": "session-1",
+      "output": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Example text."
+          }
+        ]
+      }
+    }
+  ],
+  [
+    "run.finished",
+    {
+      "sessionId": "session-1",
+      "outcome": {
+        "status": "succeeded",
+        "output": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Example text."
+            }
+          ]
+        }
+      }
+    }
+  ],
+  [
+    "tool.requested",
+    {
+      "sessionId": "session-1",
+      "call": {
+        "id": "call-1",
+        "name": "shell",
+        "arguments": {
+          "command": "pnpm test"
+        }
+      }
+    }
+  ],
+  [
+    "tool.started",
+    {
+      "sessionId": "session-1",
+      "call": {
+        "id": "call-1",
+        "name": "shell",
+        "arguments": {
+          "command": "pnpm test"
+        }
+      }
+    }
+  ],
+  [
+    "tool.finished",
+    {
+      "sessionId": "session-1",
+      "call": {
+        "name": "shell"
+      },
+      "outcome": {
+        "status": "succeeded",
+        "output": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Example text."
+            }
+          ]
+        }
+      }
+    }
+  ],
+  [
+    "context.compaction.requested",
+    {
+      "sessionId": "session-1",
+      "reason": "context_limit"
+    }
+  ],
+  [
+    "context.compaction.finished",
+    {
+      "sessionId": "session-1",
+      "outcome": {
+        "status": "succeeded",
+        "output": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Example text."
+            }
+          ]
+        }
+      }
+    }
+  ],
+  [
+    "context.source.loaded",
+    {
+      "sessionId": "session-1",
+      "source": {
+        "kind": "skill",
+        "name": "typescript-functional",
+        "uri": "file:///workspace/.agents/skills/typescript-functional/SKILL.md"
+      }
+    }
+  ],
+  [
+    "catalog.changed",
+    {
+      "catalog": "skills",
+      "entries": [
+        {
+          "name": "typescript-functional",
+          "uri": "file:///workspace/.agents/skills/typescript-functional/SKILL.md"
+        }
+      ]
+    }
+  ],
+  [
+    "model.requested",
+    {
+      "sessionId": "session-1",
+      "model": {
+        "name": "example-model"
+      },
+      "input": {
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "Example text."
+              }
+            ]
+          }
+        ],
+        "view": "complete"
+      }
+    }
+  ],
+  [
+    "model.finished",
+    {
+      "sessionId": "session-1",
+      "model": {
+        "name": "example-model"
+      },
+      "outcome": {
+        "status": "succeeded",
+        "output": {
+          "content": [],
+          "calls": [
+            {
+              "id": "call-1",
+              "name": "shell",
+              "arguments": {
+                "command": "pnpm test"
+              }
+            }
+          ]
+        }
+      },
+      "usage": {
+        "inputTokens": 12,
+        "outputTokens": 8
+      }
+    }
+  ],
+  [
+    "permission.requested",
+    {
+      "sessionId": "session-1",
+      "operation": {
+        "kind": "tool",
+        "call": {
+          "id": "call-1",
+          "name": "shell",
+          "arguments": {
+            "command": "pnpm test"
+          }
+        }
+      },
+      "options": [
+        {
+          "id": "allow-once",
+          "label": "Allow once",
+          "decision": "allow",
+          "scope": "once"
+        },
+        {
+          "id": "deny",
+          "label": "Deny",
+          "decision": "deny",
+          "scope": "once"
+        }
+      ]
+    }
+  ],
+  [
+    "permission.resolved",
+    {
+      "sessionId": "session-1",
+      "operation": {
+        "kind": "tool",
+        "call": {
+          "id": "call-1",
+          "name": "shell",
+          "arguments": {
+            "command": "pnpm test"
+          }
+        }
+      },
+      "decision": "denied",
+      "reason": "User declined."
+    }
+  ],
+  [
+    "interaction.requested",
+    {
+      "sessionId": "session-1",
+      "interaction": {
+        "kind": "question",
+        "message": "Which branch should be used?"
+      }
+    }
+  ],
+  [
+    "interaction.resolved",
+    {
+      "sessionId": "session-1",
+      "interaction": {
+        "kind": "question",
+        "message": "Which branch should be used?"
+      },
+      "response": {
+        "status": "accepted",
+        "value": "main"
+      }
+    }
+  ],
+  [
+    "agent.requested",
+    {
+      "sessionId": "session-1",
+      "agent": {
+        "id": "agent-2",
+        "name": "reviewer"
+      },
+      "input": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Example text."
+          }
+        ]
+      }
+    }
+  ],
+  [
+    "agent.started",
+    {
+      "sessionId": "session-1",
+      "agent": {
+        "id": "agent-2",
+        "name": "reviewer"
+      }
+    }
+  ],
+  [
+    "agent.finished",
+    {
+      "sessionId": "session-1",
+      "agent": {
+        "id": "agent-2",
+        "name": "reviewer"
+      },
+      "outcome": {
+        "status": "succeeded",
+        "output": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Example text."
+            }
+          ]
+        }
+      }
+    }
+  ],
+  [
+    "handoff.requested",
+    {
+      "sessionId": "session-1",
+      "from": {
+        "name": "triage"
+      },
+      "to": {
+        "name": "specialist"
+      }
+    }
+  ],
+  [
+    "handoff.finished",
+    {
+      "sessionId": "session-1",
+      "from": {
+        "name": "triage"
+      },
+      "to": {
+        "name": "specialist"
+      },
+      "outcome": {
+        "status": "succeeded"
+      }
+    }
+  ],
+  [
+    "message.emitting",
+    {
+      "sessionId": "session-1",
+      "message": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Example text."
+          }
+        ]
+      }
+    }
+  ],
+  [
+    "message.emitted",
+    {
+      "sessionId": "session-1",
+      "message": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Example text."
+          }
+        ]
+      }
+    }
+  ],
+  [
+    "run.cancellation.requested",
+    {
+      "sessionId": "session-1",
+      "reason": "User interrupted."
+    }
+  ],
+  [
+    "run.paused",
+    {
+      "sessionId": "session-1",
+      "reason": "external_input"
+    }
+  ],
+  [
+    "run.resumed",
+    {
+      "sessionId": "session-1",
+      "reason": "external_input"
+    }
+  ],
+  [
+    "tool.batch.finished",
+    {
+      "sessionId": "session-1",
+      "calls": [
+        {
+          "call": {
+            "name": "shell"
+          },
+          "outcome": {
+            "status": "succeeded",
+            "output": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Example text."
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  [
+    "plan.updated",
+    {
+      "sessionId": "session-1",
+      "steps": [
+        {
+          "id": "step-1",
+          "title": "Run tests",
+          "status": "in_progress"
+        }
+      ]
+    }
+  ],
+  [
+    "task.created",
+    {
+      "sessionId": "session-1",
+      "task": {
+        "id": "task-1",
+        "title": "Run tests",
+        "status": "pending"
+      }
+    }
+  ],
+  [
+    "task.updated",
+    {
+      "sessionId": "session-1",
+      "task": {
+        "id": "task-1",
+        "title": "Run tests",
+        "status": "pending"
+      }
+    }
+  ],
+  [
+    "task.finished",
+    {
+      "sessionId": "session-1",
+      "task": {
+        "id": "task-1",
+        "title": "Run tests"
+      },
+      "outcome": {
+        "status": "succeeded",
+        "output": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Example text."
+            }
+          ]
+        }
+      }
+    }
+  ],
+  [
+    "workspace.changed",
+    {
+      "workspace": {
+        "uri": "file:///workspace",
+        "name": "project"
+      },
+      "change": "opened"
+    }
+  ],
+  [
+    "resource.changed",
+    {
+      "resource": {
+        "uri": "file:///workspace/result.txt"
+      },
+      "change": "modified"
+    }
+  ],
+  [
+    "configuration.changed",
+    {
+      "changes": [
+        {
+          "key": "approvalPolicy",
+          "value": "ask"
+        }
+      ]
+    }
+  ],
+  [
+    "model.changed",
+    {
+      "model": {
+        "name": "example-model"
+      }
+    }
+  ],
+  [
+    "notification.created",
+    {
+      "level": "warning",
+      "message": "A provider is temporarily unavailable."
+    }
+  ],
+  [
+    "error.occurred",
+    {
+      "error": {
+        "message": "The runtime could not load its configuration.",
+        "code": "CONFIG_LOAD"
+      }
+    }
+  ]
+]
