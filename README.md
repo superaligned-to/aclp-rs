@@ -4,7 +4,7 @@ Rust client and callback server for the [Agent Context Lifecycle Protocol](https
 
 ```toml
 [dependencies]
-aclp = { git = "https://github.com/superaligned-to/aclp-rs" }
+aclp = "0.1"
 ```
 
 ## Example
