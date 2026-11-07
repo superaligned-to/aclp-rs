@@ -1,4 +1,17 @@
-# aclp-rs
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/banner-dark.svg">
+    <img alt="aclp for Rust" src=".github/assets/banner-light.svg" width="100%">
+  </picture>
+</h1>
+
+<p align="center">
+  <a href="https://crates.io/crates/aclp"><img alt="crates.io" src="https://img.shields.io/crates/v/aclp?color=2f6bff"></a>
+  <a href="https://docs.rs/aclp"><img alt="docs.rs" src="https://img.shields.io/docsrs/aclp"></a>
+  <a href="https://github.com/superaligned-to/aclp-rs/actions/workflows/check.yml"><img alt="check" src="https://github.com/superaligned-to/aclp-rs/actions/workflows/check.yml/badge.svg"></a>
+  <a href="https://github.com/superaligned-to/aclp"><img alt="protocol" src="https://img.shields.io/badge/protocol-ACLP-2f6bff"></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue"></a>
+</p>
 
 Rust client and callback server for the [Agent Context Lifecycle Protocol](https://github.com/superaligned-to/aclp). The client sends typed lifecycle events to local or remote servers over HTTP or HTTPS; the server validates them, runs your callbacks and checks their results against a JSON Schema.
 
