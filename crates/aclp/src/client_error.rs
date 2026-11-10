@@ -2,7 +2,9 @@ use std::error::Error;
 
 /// A failed request, notification admission attempt or local delivery precondition.
 ///
-/// No failure permits a guarded harness continuation; the caller keeps it blocked.
+/// A failed request's guarded continuation follows [`Client::on_error`](crate::Client::on_error):
+/// [`OnError::Deny`](crate::OnError::Deny) keeps it blocked, [`OnError::Allow`](crate::OnError::Allow)
+/// lets it proceed as if the result carried no effects. Either way the caller reports the failure.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ClientError {

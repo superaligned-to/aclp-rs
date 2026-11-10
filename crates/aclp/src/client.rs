@@ -20,6 +20,7 @@ use crate::config_error::ConfigError;
 use crate::connection::{Endpoint, Reply};
 use crate::event::Event;
 use crate::json;
+use crate::on_error::OnError;
 use crate::result_schema::ResultSchema;
 use crate::validation;
 
@@ -48,6 +49,7 @@ struct Inner {
     events: Option<HashSet<String>>,
     timeout: Duration,
     on_error: Option<ErrorHook>,
+    failure: Option<OnError>,
     state: Mutex<State>,
     drained: Notify,
 }
@@ -257,10 +259,20 @@ impl Client {
                 events: opts.events,
                 timeout: opts.timeout,
                 on_error: opts.on_error,
+                failure: opts.failure,
                 state: Mutex::new(State::default()),
                 drained: Notify::new(),
             }),
         })
+    }
+
+    /// What a failed request for `method` does to the continuation it guards: the configured
+    /// [`ClientOptions::failure_policy`], else [`OnError::default_for`] the method.
+    #[must_use]
+    pub fn on_error(&self, method: &str) -> OnError {
+        self.inner
+            .failure
+            .unwrap_or_else(|| OnError::default_for(method))
     }
 
     /// Sends a request and returns its result once it matches `result`.

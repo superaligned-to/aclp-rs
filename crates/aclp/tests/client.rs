@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use aclp::events::{ContentBlock, InputSubmittedParams, SessionStartedParams, ToolFinishedParams};
-use aclp::{Callbacks, Client, ClientError, ClientOptions, ConfigError, ServerOptions};
+use aclp::{Callbacks, Client, ClientError, ClientOptions, ConfigError, OnError, ServerOptions};
 use common::{ContextReply, constant, context_schema, input, start, tool};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -421,4 +421,23 @@ async fn clones_share_one_queue_and_capacity() {
         "{err:?}"
     );
     server.stop().await;
+}
+
+#[test]
+fn a_failed_request_fails_open_except_for_tool_and_permission_guards() {
+    let client =
+        Client::new(ClientOptions::new("http://127.0.0.1:9/events")).expect("valid options");
+    assert_eq!(client.on_error("input.submitted"), OnError::Allow);
+    assert_eq!(client.on_error("tool.requested"), OnError::Deny);
+    assert_eq!(client.on_error("permission.requested"), OnError::Deny);
+
+    let open =
+        Client::new(ClientOptions::new("http://127.0.0.1:9/events").failure_policy(OnError::Allow))
+            .expect("valid options");
+    assert_eq!(open.on_error("tool.requested"), OnError::Allow);
+
+    let closed =
+        Client::new(ClientOptions::new("http://127.0.0.1:9/events").failure_policy(OnError::Deny))
+            .expect("valid options");
+    assert_eq!(closed.on_error("input.submitted"), OnError::Deny);
 }

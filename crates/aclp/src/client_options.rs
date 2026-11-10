@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use crate::client_error::ClientError;
 use crate::events::ClientInfo;
+use crate::on_error::OnError;
 
 pub(crate) type ErrorHook = Arc<dyn Fn(&ClientError) + Send + Sync>;
 
@@ -19,13 +20,15 @@ pub(crate) enum Authorization {
     Dynamic(AuthorizationFn),
 }
 
-/// Client configuration: an endpoint, credentials, identity, consent, a deadline and a diagnostics hook.
+/// Client configuration: an endpoint, credentials, identity, consent, a deadline, a failure policy
+/// and a diagnostics hook.
 #[derive(Clone)]
 pub struct ClientOptions {
     pub(crate) url: String,
     pub(crate) authorization: Option<Authorization>,
     pub(crate) timeout: Duration,
     pub(crate) on_error: Option<ErrorHook>,
+    pub(crate) failure: Option<OnError>,
     pub(crate) client: Option<ClientInfo>,
     pub(crate) events: Option<HashSet<String>>,
     pub(crate) ca: Option<String>,
@@ -41,6 +44,7 @@ impl ClientOptions {
             authorization: None,
             timeout: Duration::from_secs(5),
             on_error: None,
+            failure: None,
             client: None,
             events: None,
             ca: None,
@@ -101,6 +105,15 @@ impl ClientOptions {
         self
     }
 
+    /// Sets what a failed request does to the continuation it guards, for every method.
+    ///
+    /// Without it each method takes [`OnError::default_for`].
+    #[must_use]
+    pub fn failure_policy(mut self, policy: OnError) -> Self {
+        self.failure = Some(policy);
+        self
+    }
+
     /// Receives each notification delivery failure; without it failures are logged with `tracing`.
     #[must_use]
     pub fn on_error(mut self, hook: impl Fn(&ClientError) + Send + Sync + 'static) -> Self {
@@ -118,6 +131,7 @@ impl fmt::Debug for ClientOptions {
                 &self.authorization.as_ref().map(|_| "<redacted>"),
             )
             .field("timeout", &self.timeout)
+            .field("failure", &self.failure)
             .field("client", &self.client)
             .field("events", &self.events)
             .finish_non_exhaustive()
